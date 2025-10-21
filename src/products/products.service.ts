@@ -1,0 +1,595 @@
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { ProductRepository } from './repositories/product.repository';
+import {
+  CreateProductDto,
+  UpdateProductDto,
+  ProductDto,
+} from './dto/product.dto';
+import {
+  Product,
+  ProductVariable,
+  CreateProductVariable,
+} from './entities/product.entity';
+import { ImageUploadService } from './../image-upload/image-upload.service';
+import { ProductFilters } from './repositories/product.repository.entity';
+import { ColorsService } from '../colors/colors.service';
+import { CategoriesService } from '../categories/categories.service';
+import { QualitiesService } from '../qualities/qualities.service';
+
+@Injectable()
+export class ProductService {
+  constructor(
+    private readonly productRepository: ProductRepository,
+    private readonly imageUploadService: ImageUploadService,
+    private readonly colorsService: ColorsService,
+    private readonly categoriesService: CategoriesService,
+    private readonly qualitiesService: QualitiesService,
+  ) {}
+
+  async findAll(filters: ProductFilters) {
+    const result = await this.productRepository.findWithFilters(filters);
+
+    // Resolve color relationships for all products
+    const productsWithColors = await Promise.all(
+      result.data.map((product) => this.mapToDto(product)),
+    );
+
+    return {
+      ...result,
+      data: productsWithColors,
+    };
+  }
+
+  async findOne(id: string): Promise<ProductDto | null> {
+    const product = await this.productRepository.findOne({
+      where: { id, active: true }, // Only return active products
+      relations: ['categories', 'quality'], // Include quality relation
+    });
+    return product ? await this.mapToDto(product) : null;
+  }
+
+  async create(createProductDto: CreateProductDto): Promise<ProductDto> {
+    console.log(
+      '🚀 ~ ProductService ~ create ~ createProductDto:',
+      createProductDto,
+    );
+
+    // Parse and validate categories
+    const categoryIds = this.parseCategoryIds(createProductDto.categories);
+    const categories = await this.validateAndGetCategories(categoryIds);
+
+    // Validate quality exists
+    const quality = await this.qualitiesService.findOne(
+      createProductDto.qualityId,
+    );
+    console.log('🚀 ~ ProductService ~ create ~ quality:', quality);
+    if (!quality) {
+      throw new BadRequestException(
+        `Quality with ID ${createProductDto.qualityId} not found`,
+      );
+    }
+
+    const product = this.productRepository.create({
+      name: createProductDto.name,
+      price: createProductDto.price,
+      active: false, // Always start as inactive
+      qualityId: createProductDto.qualityId,
+      variables: createProductDto.variables,
+    });
+
+    // Set categories relationship
+    product.categories = categories;
+
+    const savedProduct = await this.productRepository.save(product);
+    console.log("🚀 ~ ProductService ~ create ~ savedProduct:", savedProduct)
+
+    // Assign the quality object to the saved product for mapToDto
+    // Convert QualityDto to Quality entity structure
+    savedProduct.quality = {
+      id: quality.id,
+      name: quality.name,
+      description: quality.description,
+      active: quality.active,
+      createdAt: quality.createdAt,
+      updatedAt: quality.updatedAt,
+      products: [], // Not needed for mapping
+    } as any;
+
+    return await this.mapToDto(savedProduct);
+  }
+
+  async update(
+    id: string,
+    updateProductDto: UpdateProductDto,
+  ): Promise<ProductDto | null> {
+    const existingProduct = await this.productRepository.findOne({
+      where: { id },
+      relations: ['categories', 'quality'],
+    });
+    if (!existingProduct) {
+      return null;
+    }
+
+    // Parse and validate categories if provided
+    let categories = existingProduct.categories;
+    if (updateProductDto.categories !== undefined) {
+      const categoryIds = this.parseCategoryIds(updateProductDto.categories);
+      categories = await this.validateAndGetCategories(categoryIds);
+    }
+
+    // Validate quality if provided
+    if (updateProductDto.qualityId) {
+      const quality = await this.qualitiesService.findOne(
+        updateProductDto.qualityId,
+      );
+      if (!quality) {
+        throw new BadRequestException(
+          `Quality with ID ${updateProductDto.qualityId} not found`,
+        );
+      }
+    }
+
+    // Update basic fields
+    const updateData = {
+      name: updateProductDto.name,
+      price: updateProductDto.price,
+      qualityId: updateProductDto.qualityId,
+      // active: updateProductDto.active, // ❌ Remove manual active control
+      variables: updateProductDto.variables,
+    };
+
+    // Remove undefined values
+    Object.keys(updateData).forEach(
+      (key) => updateData[key] === undefined && delete updateData[key],
+    );
+
+    await this.productRepository.update(id, updateData);
+
+    // Update categories relationship if provided
+    if (updateProductDto.categories !== undefined) {
+      const updatedProduct = await this.productRepository.findOne({
+        where: { id },
+        relations: ['categories', 'quality'],
+      });
+      if (updatedProduct) {
+        updatedProduct.categories = categories;
+        await this.productRepository.save(updatedProduct);
+      }
+    }
+
+    // ✅ Check and update active status if variables were updated
+    if (updateProductDto.variables !== undefined) {
+      await this.checkAndUpdateActiveStatus(id);
+    }
+
+    const finalProduct = await this.productRepository.findOne({
+      where: { id },
+      relations: ['categories', 'quality'],
+    });
+    return finalProduct ? await this.mapToDto(finalProduct) : null;
+  }
+
+  async remove(id: string): Promise<boolean> {
+    // Get product with images before deleting
+    const product = await this.productRepository.findOne({ where: { id } });
+
+    if (!product) {
+      return false;
+    }
+
+    // Collect all image URLs from all variants
+    const allImages: string[] = [];
+    if (product.variables) {
+      product.variables.forEach((variable) => {
+        if (variable.images) {
+          allImages.push(...variable.images);
+        }
+      });
+    }
+
+    // Delete product from database
+    const result = await this.productRepository.delete(id);
+    const deleted = result.affected > 0;
+
+    // Remove all images from Cloudinary after successful database deletion
+    if (deleted && allImages.length > 0) {
+      try {
+        await this.imageUploadService.removeMultiple(allImages);
+        console.log(
+          `✅ Removed ${allImages.length} images from Cloudinary for deleted product: ${id}`,
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error removing product images from Cloudinary:',
+          error,
+        );
+        // Don't throw error here - the main deletion was successful
+      }
+    }
+
+    return deleted;
+  }
+
+  /**
+   * Upload multiple images for a specific product variant
+   */
+  async uploadVariantImages(
+    productId: string,
+    variantIndex: number,
+    files: Express.Multer.File[],
+  ): Promise<ProductDto> {
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+    });
+    if (!product) {
+      throw new Error('Product not found');
+    }
+
+    if (!product.variables || variantIndex >= product.variables.length) {
+      throw new Error('Variant not found');
+    }
+
+    // Upload images to Cloudinary
+    const uploadResults = await Promise.all(
+      files.map((file) => this.imageUploadService.upload(file, productId)),
+    );
+
+    // Add new images to existing ones
+    const updatedVariables = [...product.variables];
+    updatedVariables[variantIndex] = {
+      ...updatedVariables[variantIndex],
+      images: [
+        ...(updatedVariables[variantIndex].images || []),
+        ...uploadResults,
+      ],
+    };
+
+    await this.productRepository.update(productId, {
+      variables: updatedVariables,
+    });
+
+    // Check and update active status based on image availability
+    await this.checkAndUpdateActiveStatus(productId);
+
+    const updatedProduct = await this.productRepository.findOne({
+      where: { id: productId },
+      relations: ['categories', 'quality'],
+    });
+    return await this.mapToDto(updatedProduct!);
+  }
+
+  /**
+   * Replace all images for a specific product variant
+   */
+  async replaceVariantImages(
+    productId: string,
+    variantIndex: number,
+    files: Express.Multer.File[],
+  ): Promise<ProductDto> {
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+    });
+    if (!product) {
+      throw new Error('Product not found');
+    }
+
+    if (!product.variables || variantIndex >= product.variables.length) {
+      throw new Error('Variant not found');
+    }
+
+    const variant = product.variables[variantIndex];
+    const oldImages = variant.images || [];
+
+    // Upload new images to Cloudinary
+    const uploadResults = await Promise.all(
+      files.map((file) => this.imageUploadService.upload(file, productId)),
+    );
+
+    // Update variant with new images
+    const updatedVariables = [...product.variables];
+    updatedVariables[variantIndex] = {
+      ...updatedVariables[variantIndex],
+      images: uploadResults,
+    };
+
+    await this.productRepository.update(productId, {
+      variables: updatedVariables,
+    });
+
+    // Remove old images from Cloudinary after successful database update
+    if (oldImages.length > 0) {
+      try {
+        await this.imageUploadService.removeMultiple(oldImages);
+        console.log(
+          `✅ Removed ${oldImages.length} old images from Cloudinary`,
+        );
+      } catch (error) {
+        console.error('❌ Error removing old images from Cloudinary:', error);
+        // Don't throw error here - the main operation was successful
+      }
+    }
+
+    // Check and update active status based on image availability
+    await this.checkAndUpdateActiveStatus(productId);
+
+    const updatedProduct = await this.productRepository.findOne({
+      where: { id: productId },
+      relations: ['categories', 'quality'],
+    });
+    return await this.mapToDto(updatedProduct!);
+  }
+
+  /**
+   * Delete a specific image from a product variant
+   */
+  async deleteVariantImage(
+    productId: string,
+    variantIndex: number,
+    imageIndex: number,
+  ): Promise<ProductDto> {
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+    });
+    if (!product) {
+      throw new Error('Product not found');
+    }
+
+    if (!product.variables || variantIndex >= product.variables.length) {
+      throw new Error('Variant not found');
+    }
+
+    const variant = product.variables[variantIndex];
+    if (!variant.images || imageIndex >= variant.images.length) {
+      throw new Error('Image not found');
+    }
+
+    const imageToDelete = variant.images[imageIndex];
+
+    // Remove image from array
+    const updatedVariables = [...product.variables];
+    updatedVariables[variantIndex] = {
+      ...updatedVariables[variantIndex],
+      images: variant.images.filter((_, index) => index !== imageIndex),
+    };
+
+    await this.productRepository.update(productId, {
+      variables: updatedVariables,
+    });
+
+    // Remove image from Cloudinary after successful database update
+    try {
+      const publicId =
+        this.imageUploadService.extractPublicIdFromUrl(imageToDelete);
+      if (publicId) {
+        await this.imageUploadService.remove(publicId);
+        console.log(`✅ Removed image from Cloudinary: ${publicId}`);
+      }
+    } catch (error) {
+      console.error('❌ Error removing image from Cloudinary:', error);
+      // Don't throw error here - the main operation was successful
+    }
+
+    // Check and update active status based on image availability
+    await this.checkAndUpdateActiveStatus(productId);
+
+    const updatedProduct = await this.productRepository.findOne({
+      where: { id: productId },
+      relations: ['categories', 'quality'],
+    });
+    return await this.mapToDto(updatedProduct!);
+  }
+
+  /**
+   * Reorder images within a product variant
+   */
+  async reorderVariantImages(
+    productId: string,
+    variantIndex: number,
+    newImageOrder: string[],
+  ): Promise<ProductDto> {
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+    });
+    if (!product) {
+      throw new Error('Product not found');
+    }
+
+    if (!product.variables || variantIndex >= product.variables.length) {
+      throw new Error('Variant not found');
+    }
+
+    // Update image order
+    const updatedVariables = [...product.variables];
+    updatedVariables[variantIndex] = {
+      ...updatedVariables[variantIndex],
+      images: newImageOrder,
+    };
+
+    await this.productRepository.update(productId, {
+      variables: updatedVariables,
+    });
+
+    const updatedProduct = await this.productRepository.findOne({
+      where: { id: productId },
+      relations: ['categories', 'quality'],
+    });
+    return await this.mapToDto(updatedProduct!);
+  }
+
+  /**
+   * Clean up orphaned images from Cloudinary (maintenance method)
+   * This method can be called periodically to remove unused images
+   */
+  async cleanupOrphanedImages(): Promise<{ removed: number; errors: number }> {
+    console.log('🧹 Starting orphaned images cleanup...');
+
+    try {
+      // Get all products with their images
+      const products = await this.productRepository.find();
+      const usedImages = new Set<string>();
+
+      // Collect all used image URLs
+      products.forEach((product) => {
+        if (product.variables) {
+          product.variables.forEach((variable) => {
+            if (variable.images) {
+              variable.images.forEach((imageUrl) => usedImages.add(imageUrl));
+            }
+          });
+        }
+      });
+
+      console.log(
+        `📊 Found ${usedImages.size} images in use across ${products.length} products`,
+      );
+
+      // Note: To implement full cleanup, you'd need to:
+      // 1. List all images in Cloudinary folder
+      // 2. Compare with used images
+      // 3. Remove unused ones
+      // This requires additional Cloudinary API calls
+
+      return { removed: 0, errors: 0 };
+    } catch (error) {
+      console.error('❌ Error during cleanup:', error);
+      return { removed: 0, errors: 1 };
+    }
+  }
+
+  /**
+   * Parse comma-separated category IDs string into array
+   */
+  private parseCategoryIds(categoriesInput?: string): string[] {
+    if (!categoriesInput) {
+      return [];
+    }
+
+    // Handle if it's already transformed to array by DTO transformer
+    if (Array.isArray(categoriesInput)) {
+      return categoriesInput;
+    }
+
+    // Handle comma-separated string
+    if (typeof categoriesInput === 'string') {
+      return categoriesInput
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
+    }
+
+    return [];
+  }
+
+  /**
+   * Validate category IDs exist and return Category entities
+   */
+  private async validateAndGetCategories(
+    categoryIds: string[],
+  ): Promise<any[]> {
+    if (categoryIds.length === 0) {
+      // If no categories provided, use default category
+      const defaultCategory = await this.categoriesService.getDefaultCategory();
+      if (!defaultCategory) {
+        throw new BadRequestException(
+          'No categories provided and no default category found',
+        );
+      }
+      return [{ id: defaultCategory.id }]; // Return minimal category object for relationship
+    }
+
+    // Validate all category IDs exist
+    const categories = await this.categoriesService.findByIds(categoryIds);
+
+    if (categories.length !== categoryIds.length) {
+      const foundIds = categories.map((c) => c.id);
+      const missingIds = categoryIds.filter((id) => !foundIds.includes(id));
+      throw new BadRequestException(
+        `Invalid category IDs: ${missingIds.join(', ')}`,
+      );
+    }
+
+    return categories;
+  }
+
+  /**
+   * Check if all variants have at least one image and auto-activate product
+   */
+  private async checkAndUpdateActiveStatus(productId: string): Promise<void> {
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+    });
+
+    if (!product) return;
+
+    let shouldBeActive = false;
+
+    // Product should be active if ALL variants have at least one image
+    if (product.variables && product.variables.length > 0) {
+      shouldBeActive = product.variables.every(
+        (variable) => variable.images && variable.images.length > 0,
+      );
+    }
+
+    // Update active status if it changed
+    if (product.active !== shouldBeActive) {
+      await this.productRepository.update(productId, {
+        active: shouldBeActive,
+      });
+      console.log(
+        `✅ Product ${productId} active status updated to: ${shouldBeActive}`,
+      );
+    }
+  }
+
+  private async mapToDto(product: Product): Promise<ProductDto> {
+    console.log('🚀 ~ ProductService ~ mapToDto ~ product:', product);
+    let resolvedVariables: ProductVariable[] | null = null;
+
+    if (product.variables && product.variables.length > 0) {
+      // Get all unique color IDs from variables
+      const colorIds = [...new Set(product.variables.map((v) => v.colorId))];
+
+      // Fetch colors in batch
+      const colors = await this.colorsService.findByIds(colorIds);
+      const colorMap = new Map(colors.map((color) => [color.id, color]));
+
+      // Map variables with resolved color information
+      resolvedVariables = product.variables.map((variable) => {
+        const color = colorMap.get(variable.colorId);
+        return {
+          colorId: variable.colorId,
+          colorHex: color?.hexCode || '',
+          colorName: color?.name || '',
+          images: variable.images,
+        };
+      });
+    }
+
+    return {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      categories:
+        product.categories?.map((category) => ({
+          id: category.id,
+          name: category.name,
+          default: category.default,
+          active: category.active,
+          createdAt: category.createdAt,
+          updatedAt: category.updatedAt,
+        })) || [],
+      quality: {
+        id: product.quality.id,
+        name: product.quality.name,
+        description: product.quality.description,
+        active: product.quality.active,
+        createdAt: product.quality.createdAt,
+        updatedAt: product.quality.updatedAt,
+      },
+      active: product.active,
+      variables: resolvedVariables,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    };
+  }
+}
