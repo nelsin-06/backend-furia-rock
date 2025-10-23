@@ -12,6 +12,12 @@ export class AddCartItemDto {
   @IsUUID()
   productId: string;
 
+  @IsUUID()
+  variantId: string;
+
+  @IsString()
+  talla: string;
+
   @IsNumber()
   @Min(1)
   quantity: number;
@@ -26,6 +32,8 @@ export class UpdateCartItemDto {
 export class CartItemResponseDto {
   id: string;
   productId: string;
+  variantId: string;
+  talla: string;
   quantity: number;
   price: number;
   discount: number;

@@ -21,6 +21,13 @@ export class CartItem {
   @Index('idx_cart_item_product')
   productId: string;
 
+  @Column({ type: 'uuid' })
+  @Index('idx_cart_item_variant')
+  variantId: string;
+
+  @Column({ type: 'varchar', length: 10 })
+  talla: string;
+
   @Column({ type: 'int' })
   quantity: number;
 

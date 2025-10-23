@@ -75,10 +75,20 @@ export class CartService {
       throw new BadRequestException('Product is not available');
     }
 
-    // Check if item already exists in cart
-    let cartItem = await this.cartItemRepository.findByCartAndProduct(
+    // Validate variantId exists in product variables
+    const variant = product.variables.find(
+      (v) => v.variantId === addItemDto.variantId,
+    );
+    if (!variant) {
+      throw new BadRequestException('Variant not found in product');
+    }
+
+    // Check if item already exists in cart (same product + variant + size)
+    let cartItem = await this.cartItemRepository.findByCartProductVariantAndSize(
       cart.id,
       addItemDto.productId,
+      addItemDto.variantId,
+      addItemDto.talla,
     );
 
     if (cartItem) {
@@ -95,6 +105,8 @@ export class CartService {
       cartItem = this.cartItemRepository.create({
         cartId: cart.id,
         productId: addItemDto.productId,
+        variantId: addItemDto.variantId,
+        talla: addItemDto.talla,
         quantity: addItemDto.quantity,
         price: Number(product.price),
         discount: 0, // No discount by default
@@ -118,11 +130,13 @@ export class CartService {
     updateItemDto: UpdateCartItemDto,
   ): Promise<Cart> {
     const cart = await this.getOrCreateCart(sessionId);
+    console.log("🚀 ~ CartService ~ updateItem ~ cart:", cart)
 
-    const cartItem = await this.cartItemRepository.findByCartAndProduct(
+    const cartItem = await this.cartItemRepository.findByCartAndItemId(
       cart.id,
       itemId,
     );
+    console.log("🚀 ~ CartService ~ updateItem ~ cartItem:", cartItem)
 
     if (!cartItem) {
       throw new NotFoundException('Item not found in cart');

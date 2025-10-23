@@ -10,13 +10,27 @@ export class CartItemRepository {
     private readonly repository: Repository<CartItem>,
   ) {}
 
-  // Find item by cart and product
-  async findByCartAndProduct(
+  // Find item by cart, product, variant, and size
+  async findByCartProductVariantAndSize(
     cartId: string,
     productId: string,
+    variantId: string,
+    talla: string,
   ): Promise<CartItem | null> {
     return this.repository.findOne({
-      where: { cartId, productId },
+      where: { cartId, productId, variantId, talla },
+    });
+  }
+
+  // Find item by cart and product (legacy method - keep for backward compatibility)
+  async findByCartAndItemId(
+    cartId: string,
+    itemId: string,
+  ): Promise<CartItem | null> {
+    console.log("🚀 ~ CartItemRepository ~ findByCartAndItemId ~ itemId:", itemId)
+    console.log("🚀 ~ CartItemRepository ~ findByCartAndItemId ~ cartId:", cartId)
+    return this.repository.findOne({
+      where: { cartId, id: itemId },
     });
   }
 
