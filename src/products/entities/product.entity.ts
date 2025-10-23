@@ -14,6 +14,7 @@ import { Category } from '../../categories/entities/category.entity';
 import { Quality } from '../../qualities/entities/quality.entity';
 
 export type ProductVariable = {
+  variantId: string;
   colorId: string;
   colorHex: string;
   colorName: string;
@@ -22,6 +23,7 @@ export type ProductVariable = {
 
 // For creating products, we only need colorId and images
 export type CreateProductVariable = {
+  variantId?: string;
   colorId: string;
   images: string[];
 };

@@ -20,6 +20,10 @@ import { Not } from 'typeorm';
 // DTO for creating/updating product variables (only needs colorId and images)
 export class CreateProductVariableDto {
   @IsUUID()
+  @IsOptional()
+  variantId?: string;
+
+  @IsUUID()
   colorId: string;
 
   @IsArray()
@@ -30,6 +34,9 @@ export class CreateProductVariableDto {
 
 // DTO for response (includes all color info)
 export class ProductVariableDto {
+  @IsUUID()
+  variantId: string;
+
   @IsUUID()
   colorId: string;
 

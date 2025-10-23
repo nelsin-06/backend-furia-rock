@@ -15,6 +15,7 @@ import { ProductFilters } from './repositories/product.repository.entity';
 import { ColorsService } from '../colors/colors.service';
 import { CategoriesService } from '../categories/categories.service';
 import { QualitiesService } from '../qualities/qualities.service';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ProductService {
@@ -25,6 +26,11 @@ export class ProductService {
     private readonly categoriesService: CategoriesService,
     private readonly qualitiesService: QualitiesService,
   ) {}
+
+  // Generate unique variant ID
+  private generateVariantId(): string {
+    return uuidv4();
+  }
 
   async findAll(filters: ProductFilters) {
     const result = await this.productRepository.findWithFilters(filters);
@@ -69,12 +75,18 @@ export class ProductService {
       );
     }
 
+    // Generate variantId for each variable
+    const variablesWithIds = createProductDto.variables?.map((variable) => ({
+      ...variable,
+      variantId: this.generateVariantId(),
+    }));
+
     const product = this.productRepository.create({
       name: createProductDto.name,
       price: createProductDto.price,
       active: false, // Always start as inactive
       qualityId: createProductDto.qualityId,
-      variables: createProductDto.variables,
+      variables: variablesWithIds,
     });
 
     // Set categories relationship
@@ -129,13 +141,22 @@ export class ProductService {
       }
     }
 
+    // Handle variables update: preserve existing variantIds or generate new ones
+    let variablesToUpdate = updateProductDto.variables;
+    if (variablesToUpdate && variablesToUpdate.length > 0) {
+      variablesToUpdate = variablesToUpdate.map((variable) => ({
+        ...variable,
+        variantId: variable.variantId || this.generateVariantId(),
+      }));
+    }
+
     // Update basic fields
     const updateData = {
       name: updateProductDto.name,
       price: updateProductDto.price,
       qualityId: updateProductDto.qualityId,
       // active: updateProductDto.active, // ❌ Remove manual active control
-      variables: updateProductDto.variables,
+      variables: variablesToUpdate,
     };
 
     // Remove undefined values
@@ -557,6 +578,7 @@ export class ProductService {
       resolvedVariables = product.variables.map((variable) => {
         const color = colorMap.get(variable.colorId);
         return {
+          variantId: variable.variantId || this.generateVariantId(),
           colorId: variable.colorId,
           colorHex: color?.hexCode || '',
           colorName: color?.name || '',
