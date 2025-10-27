@@ -48,7 +48,7 @@ export class ProductService {
 
   async findOne(id: string): Promise<ProductDto | null> {
     const product = await this.productRepository.findOne({
-      where: { id, active: true }, // Only return active products
+      where: { id }, // Only return active products
       relations: ['categories', 'quality'], // Include quality relation
     });
     return product ? await this.mapToDto(product) : null;
@@ -93,7 +93,7 @@ export class ProductService {
     product.categories = categories;
 
     const savedProduct = await this.productRepository.save(product);
-    console.log("🚀 ~ ProductService ~ create ~ savedProduct:", savedProduct)
+    console.log('🚀 ~ ProductService ~ create ~ savedProduct:', savedProduct);
 
     // Assign the quality object to the saved product for mapToDto
     // Convert QualityDto to Quality entity structure
@@ -141,23 +141,95 @@ export class ProductService {
       }
     }
 
-    // Handle variables update: preserve existing variantIds or generate new ones
-    let variablesToUpdate = updateProductDto.variables;
-    if (variablesToUpdate && variablesToUpdate.length > 0) {
-      variablesToUpdate = variablesToUpdate.map((variable) => ({
-        ...variable,
-        variantId: variable.variantId || this.generateVariantId(),
-      }));
+    // Handle variables update with merge strategy
+    let mergedVariables = existingProduct.variables || [];
+    
+    if (updateProductDto.variables !== undefined) {
+      // Validate no duplicate colorIds in the incoming array
+      const colorIds = updateProductDto.variables.map(v => v.colorId);
+      const duplicateColors = colorIds.filter((color, index) => colorIds.indexOf(color) !== index);
+      if (duplicateColors.length > 0) {
+        throw new BadRequestException(
+          `Duplicate colorIds found in variables: ${duplicateColors.join(', ')}`
+        );
+      }
+
+      // Validate all colors exist
+      const uniqueColorIds = [...new Set(colorIds)];
+      const existingColors = await this.colorsService.findByIds(uniqueColorIds);
+      if (existingColors.length !== uniqueColorIds.length) {
+        const foundColorIds = existingColors.map(c => c.id);
+        const missingColors = uniqueColorIds.filter(id => !foundColorIds.includes(id));
+        throw new BadRequestException(
+          `Colors not found: ${missingColors.join(', ')}`
+        );
+      }
+
+      // Create map of existing variables by variantId (as CreateProductVariable type)
+      const existingMap = new Map<string, CreateProductVariable>(
+        (existingProduct.variables || []).map((v) => [v.variantId, {
+          variantId: v.variantId,
+          colorId: v.colorId,
+          images: v.images || []
+        }])
+      );
+
+      // Build merged array based on incoming variables
+      mergedVariables = updateProductDto.variables.map((incoming) => {
+        if (incoming.variantId && existingMap.has(incoming.variantId)) {
+          // Update existing variant: preserve variantId and images, update colorId
+          const existing = existingMap.get(incoming.variantId)!;
+          return {
+            variantId: existing.variantId!,
+            colorId: incoming.colorId,
+            images: existing.images || [],
+          };
+        } else {
+          // Create new variant: generate variantId, start with empty images
+          return {
+            variantId: this.generateVariantId(),
+            colorId: incoming.colorId,
+            images: [],
+          };
+        }
+      });
+
+      // Note: Variants not present in the incoming array are implicitly deleted
+    }
+
+    // Validate active field if provided
+    if (updateProductDto.active === true) {
+      const variablesToCheck = updateProductDto.variables !== undefined ? mergedVariables : existingProduct.variables;
+      
+      if (!variablesToCheck || variablesToCheck.length === 0) {
+        throw new BadRequestException(
+          'Cannot set product as active: product must have at least one variant'
+        );
+      }
+
+      const allVariablesHaveImages = variablesToCheck.every(
+        (v) => v.images && v.images.length > 0
+      );
+
+      if (!allVariablesHaveImages) {
+        throw new BadRequestException(
+          'Cannot set product as active: all variants must have at least one image'
+        );
+      }
     }
 
     // Update basic fields
-    const updateData = {
+    const updateData: any = {
       name: updateProductDto.name,
       price: updateProductDto.price,
       qualityId: updateProductDto.qualityId,
-      // active: updateProductDto.active, // ❌ Remove manual active control
-      variables: variablesToUpdate,
+      active: updateProductDto.active,
     };
+
+    // Only update variables if explicitly provided
+    if (updateProductDto.variables !== undefined) {
+      updateData.variables = mergedVariables;
+    }
 
     // Remove undefined values
     Object.keys(updateData).forEach(
@@ -178,7 +250,7 @@ export class ProductService {
       }
     }
 
-    // ✅ Check and update active status if variables were updated
+    // Check and update active status if variables were updated
     if (updateProductDto.variables !== undefined) {
       await this.checkAndUpdateActiveStatus(id);
     }

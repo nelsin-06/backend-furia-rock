@@ -12,12 +12,15 @@ import {
   IsNotEmpty,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { ProductVariable, CreateProductVariable } from '../entities/product.entity';
+import {
+  ProductVariable,
+  CreateProductVariable,
+} from '../entities/product.entity';
 import { CategoryDto } from '../../categories/dto/category.dto';
 import { QualityDto } from '../../qualities/dto/quality.dto';
 import { Not } from 'typeorm';
 
-// DTO for creating/updating product variables (only needs colorId and images)
+// DTO for creating product variables (only needs colorId, images empty)
 export class CreateProductVariableDto {
   @IsUUID()
   @IsOptional()
@@ -30,6 +33,18 @@ export class CreateProductVariableDto {
   @IsString({ each: true })
   @IsOptional()
   images: string[];
+}
+
+// DTO for updating product variables (variantId identifies existing, colorId can change)
+export class UpdateProductVariableDto {
+  // If present: update existing variant (preserve images)
+  // If absent: create new variant (generate variantId, images=[])
+  @IsUUID()
+  @IsOptional()
+  variantId?: string;
+
+  @IsUUID()
+  colorId: string;
 }
 
 // DTO for response (includes all color info)
@@ -62,10 +77,13 @@ export class CreateProductDto {
 
   @IsNotEmpty()
   @Transform(({ value }) => {
-    console.log("🚀 ~ CreateProductDto ~ value:", typeof value)
+    console.log('🚀 ~ CreateProductDto ~ value:', typeof value);
     // Handle comma-separated category IDs
     if (typeof value === 'string') {
-      return value.split(',').map(id => id.trim()).filter(id => id.length > 0);
+      return value
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
     }
     return value;
   })
@@ -94,12 +112,15 @@ export class UpdateProductDto {
   @IsOptional()
   price?: number;
 
-  @IsString()
   @IsOptional()
   @Transform(({ value }) => {
+    console.log('🚀 ~ CreateProductDto ~ value:', typeof value);
     // Handle comma-separated category IDs
     if (typeof value === 'string') {
-      return value.split(',').map(id => id.trim()).filter(id => id.length > 0);
+      return value
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
     }
     return value;
   })
@@ -109,13 +130,16 @@ export class UpdateProductDto {
   @IsOptional()
   qualityId?: string;
 
-  // Active field removed - managed automatically based on image availability
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  active?: boolean;
 
   @IsArray()
   @IsOptional()
   @ValidateNested({ each: true })
-  @Type(() => CreateProductVariableDto)
-  variables?: CreateProductVariableDto[];
+  @Type(() => UpdateProductVariableDto)
+  variables?: UpdateProductVariableDto[];
 }
 
 export class ProductQueryDto {
@@ -188,4 +212,3 @@ export class ProductDto {
   createdAt: Date;
   updatedAt: Date;
 }
-
