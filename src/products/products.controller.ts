@@ -1,20 +1,24 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Patch, 
-  Param, 
-  Delete, 
-  Query, 
-  UseGuards, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
   UseInterceptors,
   UploadedFiles,
-  BadRequestException
+  BadRequestException,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './products.service';
-import { CreateProductDto, UpdateProductDto, ProductQueryDto } from './dto/product.dto';
+import {
+  CreateProductDto,
+  UpdateProductDto,
+  ProductQueryDto,
+} from './dto/product.dto';
 import { ImageUploadService } from '../image-upload/image-upload.service';
 
 @Controller('products')
@@ -41,32 +45,30 @@ export class ProductController {
   @Post()
   // @UseGuards(JwtAuthGuard)
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [{ name: 'images', maxCount: 20 }],
-      {
-        limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-        fileFilter: (_req, file, cb) => {
-          if (!file.mimetype.startsWith('image/')) {
-            return cb(new BadRequestException('Only images are allowed'), false);
-          }
-          cb(null, true);
-        },
+    FileFieldsInterceptor([{ name: 'images', maxCount: 20 }], {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return cb(new BadRequestException('Only images are allowed'), false);
+        }
+        cb(null, true);
       },
-    ),
+    }),
   )
   async create(
-    @Body() createProductDto: CreateProductDto,//CreateProductDto,
+    @Body() createProductDto: CreateProductDto, //CreateProductDto,
     @UploadedFiles() files: { images?: Express.Multer.File[] },
   ) {
-    
     // First create the product to get an ID
     const product = await this.productService.create(createProductDto);
-
+    console.log('==========================>',files);
     // If files are uploaded, process them
     if (files.images && files.images.length > 0) {
       // Upload images to Cloudinary
       const imageUrls = await Promise.all(
-        files.images.map((file) => this.imageUploadService.upload(file, product.id)),
+        files.images.map((file) =>
+          this.imageUploadService.upload(file, product.id),
+        ),
       );
 
       // Update product variables with uploaded images
@@ -84,7 +86,9 @@ export class ProductController {
         });
 
         // Update the product with image URLs
-        return await this.productService.update(product.id, { variables: product.variables });
+        return await this.productService.update(product.id, {
+          variables: product.variables,
+        });
       }
     }
 
@@ -92,7 +96,10 @@ export class ProductController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateProductDto: UpdateProductDto,
+  ) {
     const product = await this.productService.update(id, updateProductDto);
     if (!product) {
       throw new Error('Product not found');

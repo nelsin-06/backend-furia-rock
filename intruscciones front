@@ -1,0 +1,270 @@
+# Flujo de Creación de Productos - Frontend
+
+## Resumen General
+
+La creación de productos requiere **2 pasos secuenciales**:
+1. **POST `/api/products`** - Crea el producto con todos sus datos
+2. **POST `/api/products/:productId/variants/:variantIndex/images`** - Sube las imágenes de cada variante por separado
+
+**Importante:** Las imágenes se suben DESPUÉS de crear el producto, usando el `productId` que retorna el primer endpoint.
+
+---
+
+## Paso 1: Preparar los Datos del Producto
+
+El frontend debe recolectar del formulario:
+
+### Datos Básicos:
+- **name** (string, requerido): Nombre del producto
+- **price** (number, requerido): Precio con máximo 2 decimales
+- **categories** (string, requerido): IDs de categorías separados por comas (ej: "cat-uuid-1,cat-uuid-2")
+- **qualityId** (UUID, requerido): ID de la calidad seleccionada
+
+### Variables del Producto:
+- **variables** (array, opcional): Lista de variantes del producto
+  - Cada variante contiene:
+    - **colorId** (UUID, requerido): ID del color
+    - **images** (array de strings, opcional): URLs de imágenes (inicialmente vacío, se llena después)
+    - **variantId** (UUID, opcional): Si no se envía, el backend lo genera automáticamente
+
+**Nota:** En este paso, el array `images` de cada variante debe estar **vacío** `[]` porque aún no se han subido las imágenes.
+
+---
+
+## Paso 2: Crear el Producto (POST `/api/products`)
+
+### Request:
+```http
+POST /api/products
+Content-Type: application/json
+Headers:
+  Authorization: Bearer {jwt-token}  (si está implementado el guard)
+
+Body:
+{
+  "name": "Remera Oversized Furia Rock",
+  "price": 15000.50,
+  "categories": "cat-uuid-1,cat-uuid-2,cat-uuid-3",
+  "qualityId": "quality-uuid-premium",
+  "variables": [
+    {
+      "colorId": "color-uuid-red",
+      "images": []
+    },
+    {
+      "colorId": "color-uuid-black",
+      "images": []
+    }
+  ]
+}
+```
+
+### Response 200:
+```json
+{
+  "id": "product-uuid-123",
+  "name": "Remera Oversized Furia Rock",
+  "price": 15000.50,
+  "active": false,
+  "categories": [...],
+  "quality": {...},
+  "variables": [
+    {
+      "variantId": "variant-uuid-generated-1",
+      "colorId": "color-uuid-red",
+      "colorName": "Rojo",
+      "colorHex": "#FF0000",
+      "images": []
+    },
+    {
+      "variantId": "variant-uuid-generated-2",
+      "colorId": "color-uuid-black",
+      "colorName": "Negro",
+      "colorHex": "#000000",
+      "images": []
+    }
+  ],
+  "createdAt": "2025-10-27T...",
+  "updatedAt": "2025-10-27T..."
+}
+```
+
+**Guardar:** El frontend debe guardar el `id` del producto y los `variantId` de cada variante para el siguiente paso.
+
+---
+
+## Paso 3: Organizar las Imágenes por Variante
+
+El frontend debe organizar las imágenes según la variante a la que pertenecen.
+
+### Estructura esperada:
+```
+Usuario seleccionó 5 imágenes para variante "Rojo":
+- imagen1.jpg → variant-uuid-generated-1
+- imagen2.jpg → variant-uuid-generated-1
+- imagen3.jpg → variant-uuid-generated-1
+- imagen4.jpg → variant-uuid-generated-1
+- imagen5.jpg → variant-uuid-generated-1
+
+Usuario seleccionó 3 imágenes para variante "Negro":
+- imagen6.jpg → variant-uuid-generated-2
+- imagen7.jpg → variant-uuid-generated-2
+- imagen8.jpg → variant-uuid-generated-2
+```
+
+---
+
+## Paso 4: Subir las Imágenes por Variante (POST `/api/products/:productId/variants/:variantIndex/images`)
+
+### Request:
+```http
+POST /api/products/product-uuid-123/variants/0/images
+Content-Type: multipart/form-data
+Headers:
+  Authorization: Bearer {jwt-token}  (si está implementado el guard)
+
+FormData:
+  images: [File, File, File, ...]  (archivos de imagen, máx. 10 por llamada)
+```
+
+### Cómo indicar la variante (variantIndex):
+- `variantIndex` es el índice (posición numérica empezando en 0) de la variante dentro del arreglo `variables` que devuelve el endpoint de creación de producto.
+- Para subir imágenes de la primera variante, usa `variantIndex = 0`; para la segunda, `variantIndex = 1`, y así sucesivamente.
+- Sube las imágenes de cada variante en llamadas separadas a este endpoint.
+
+### Reglas de carga:
+- Máximo 10 archivos por request (campo `images`).
+- Solo se permiten archivos cuyo mimetype comience con `image/`.
+
+### Response 200:
+```json
+{
+  "message": "Images uploaded successfully",
+  "product": {
+    "id": "product-uuid-123",
+    "name": "Remera Oversized Furia Rock",
+    "variables": [
+      {
+        "variantId": "variant-uuid-generated-1",
+        "colorId": "color-uuid-red",
+        "colorName": "Rojo",
+        "colorHex": "#FF0000",
+        "images": [
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-1/image1.jpg",
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-1/image2.jpg",
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-1/image3.jpg",
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-1/image4.jpg",
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-1/image5.jpg"
+        ]
+      },
+      {
+        "variantId": "variant-uuid-generated-2",
+        "colorId": "color-uuid-black",
+        "colorName": "Negro",
+        "colorHex": "#000000",
+        "images": [
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-2/image6.jpg",
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-2/image7.jpg",
+          "https://bucket.s3.amazonaws.com/products/product-uuid-123/variant-uuid-generated-2/image8.jpg"
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Validaciones Importantes
+
+### En el Paso 1 (Crear Producto):
+- **name**: No puede estar vacío
+- **price**: Debe ser número positivo con máximo 2 decimales
+- **categories**: Debe ser string con al menos 1 UUID válido
+- **qualityId**: Debe ser UUID válido que exista en la BD
+- **variables[].colorId**: Cada color debe existir en la BD
+
+### En el Paso 4 (Subir Imágenes):
+- **Archivos**: Máximo 10 imágenes por request (campo `images`)
+- **Tamaño**: Cada imagen máximo 10 MB
+- **Formato**: Solo imágenes (image/jpeg, image/png, etc.)
+- **variantIndex**: Debe ser un entero >= 0 y estar dentro del rango de `variables` del producto
+
+---
+
+## Manejo de Errores
+
+### Errores Comunes en POST `/api/products`:
+- **400 Bad Request**: 
+  - Datos de validación incorrectos
+  - categories con formato inválido
+  - price negativo o con más de 2 decimales
+- **404 Not Found**:
+  - qualityId no existe
+  - algún colorId no existe
+
+### Errores Comunes en POST `/api/products/:productId/variants/:variantIndex/images`:
+- **400 Bad Request**:
+  - No se enviaron archivos (`No images provided`)
+  - Algún archivo no es imagen
+  - Algún archivo supera 10 MB
+  - `variantIndex` inválido (fuera de rango o no numérico)
+- **404 Not Found**:
+  - productId no existe
+
+---
+
+## Flujo Completo Recomendado
+
+### UI/UX Sugerido:
+
+1. **Formulario Principal:**
+   - Campos: nombre, precio, categorías (multiselect), calidad (select)
+   - Botón "Agregar Variante"
+
+2. **Por Cada Variante:**
+   - Select de color
+   - Input file múltiple para imágenes
+   - Preview de imágenes seleccionadas
+   - Botón "Eliminar Variante"
+
+3. **Botón "Crear Producto":**
+   - Al hacer clic:
+     - Validar formulario
+     - Mostrar loading
+     - Llamar POST `/api/products`
+  - Si exitoso, guardar `productId` y el arreglo `variables` (para conocer los índices)
+  - Por cada variante que tenga imágenes, llamar POST `/api/products/{productId}/variants/{variantIndex}/images` con hasta 10 imágenes por llamada
+     - Si exitoso, mostrar mensaje de éxito
+     - Redirigir a lista de productos o detalle del producto creado
+
+4. **Manejo de Estados:**
+   - **Loading**: Durante ambas llamadas al backend
+   - **Success**: Producto creado con imágenes subidas
+   - **Error en Paso 1**: No continuar al Paso 2, mostrar error
+   - **Error en Paso 2**: Producto creado pero sin imágenes, permitir reintentar subida
+
+---
+
+## Consideraciones Adicionales
+
+### ¿Qué pasa si falla la subida de imágenes?
+- El producto YA fue creado en la BD
+- Queda con `images: []` en sus variantes
+- El frontend puede:
+  - Ofrecer botón "Reintentar subir imágenes"
+  - Redirigir a página de edición del producto
+  - Usar endpoint PATCH `/api/products/:id` para actualizar después
+
+### Producto sin imágenes:
+- Es válido crear un producto sin variantes o sin imágenes
+- El campo `variables` es opcional
+- Si no envías variantes, el producto se crea sin ellas
+
+### Orden de las imágenes:
+- El orden en que subes las imágenes se mantiene en el array
+- La primera imagen suele usarse como imagen principal en listados
+
+### Límites:
+- Máximo 10 imágenes por llamada al endpoint de upload de variante
+- Si necesitas subir más para una variante, realiza múltiples llamadas para la misma variante (respetando el límite por request)
