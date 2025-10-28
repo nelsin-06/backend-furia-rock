@@ -52,4 +52,12 @@ export class CartRepository {
   async delete(id: string): Promise<void> {
     await this.repository.delete(id);
   }
+
+  // Find all active carts
+  async findAll(): Promise<Cart[]> {
+    return this.repository.find({
+      where: { status: CartStatus.ACTIVE },
+      relations: ['items'],
+    });
+  }
 }

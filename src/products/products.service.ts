@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { ProductRepository } from './repositories/product.repository';
 import {
   CreateProductDto,
@@ -15,6 +15,7 @@ import { ProductFilters } from './repositories/product.repository.entity';
 import { ColorsService } from '../colors/colors.service';
 import { CategoriesService } from '../categories/categories.service';
 import { QualitiesService } from '../qualities/qualities.service';
+import { CartService } from '../cart/cart.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -25,6 +26,8 @@ export class ProductService {
     private readonly colorsService: ColorsService,
     private readonly categoriesService: CategoriesService,
     private readonly qualitiesService: QualitiesService,
+    @Inject(forwardRef(() => CartService))
+    private readonly cartService: CartService,
   ) {}
 
   // Generate unique variant ID
@@ -255,6 +258,28 @@ export class ProductService {
       await this.checkAndUpdateActiveStatus(id);
     }
 
+    // Update cart items if price changed
+    if (updateProductDto.price !== undefined && updateProductDto.price !== existingProduct.price) {
+      await this.cartService.updateCartItemsByProductPrice(id, updateProductDto.price);
+    }
+
+    // Remove cart items for deleted variants
+    if (updateProductDto.variables !== undefined) {
+      const existingVariantIds = new Set(
+        (existingProduct.variables || []).map(v => v.variantId)
+      );
+      const newVariantIds = new Set(
+        mergedVariables.map(v => v.variantId)
+      );
+
+      // Find deleted variants
+      for (const oldVariantId of existingVariantIds) {
+        if (!newVariantIds.has(oldVariantId)) {
+          await this.cartService.removeCartItemsByVariant(id, oldVariantId);
+        }
+      }
+    }
+
     const finalProduct = await this.productRepository.findOne({
       where: { id },
       relations: ['categories', 'quality'],
@@ -283,6 +308,17 @@ export class ProductService {
     // Delete product from database
     const result = await this.productRepository.delete(id);
     const deleted = result.affected > 0;
+
+    // Remove product from all carts
+    if (deleted) {
+      try {
+        await this.cartService.removeCartItemsByProduct(id);
+        console.log(`✅ Removed product ${id} from all carts`);
+      } catch (error) {
+        console.error('❌ Error removing product from carts:', error);
+        // Don't throw error here - the main deletion was successful
+      }
+    }
 
     // Remove all images from Cloudinary after successful database deletion
     if (deleted && allImages.length > 0) {

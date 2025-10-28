@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { CartRepository } from './repositories/cart.repository';
 import { CartItemRepository } from './repositories/cart-item.repository';
@@ -18,6 +20,7 @@ export class CartService {
   constructor(
     private readonly cartRepository: CartRepository,
     private readonly cartItemRepository: CartItemRepository,
+    @Inject(forwardRef(() => ProductService))
     private readonly productService: ProductService,
   ) {}
 
@@ -235,5 +238,45 @@ export class CartService {
   // Cleanup expired carts (called by cron)
   async cleanupExpiredCarts(): Promise<number> {
     return await this.cartRepository.deleteExpired();
+  }
+
+  // Update cart items when product price changes
+  async updateCartItemsByProductPrice(productId: string, newPrice: number): Promise<void> {
+    const cartItems = await this.cartItemRepository.findByProductId(productId);
+    
+    for (const item of cartItems) {
+      item.price = newPrice;
+      item.total = this.calculateItemTotal(item.quantity, newPrice, item.discount);
+      await this.cartItemRepository.save(item);
+      
+      // Recalculate cart totals
+      await this.updateCartTotals(item.cartId);
+    }
+  }
+
+  // Remove cart items when a variant is deleted
+  async removeCartItemsByVariant(productId: string, variantId: string): Promise<void> {
+    await this.cartItemRepository.deleteByProductAndVariant(productId, variantId);
+    
+    // Find all carts that had this variant and recalculate their totals
+    const affectedCarts = await this.cartRepository.findAll();
+    for (const cart of affectedCarts) {
+      if (cart.items.some(item => item.productId === productId && item.variantId === variantId)) {
+        await this.updateCartTotals(cart.id);
+      }
+    }
+  }
+
+  // Remove all cart items for a product (when product is deleted)
+  async removeCartItemsByProduct(productId: string): Promise<void> {
+    await this.cartItemRepository.deleteByProductId(productId);
+    
+    // Find all carts and recalculate their totals
+    const affectedCarts = await this.cartRepository.findAll();
+    for (const cart of affectedCarts) {
+      if (cart.items.some(item => item.productId === productId)) {
+        await this.updateCartTotals(cart.id);
+      }
+    }
   }
 }

@@ -53,4 +53,28 @@ export class CartItemRepository {
   async deleteByCartId(cartId: string): Promise<void> {
     await this.repository.delete({ cartId });
   }
+
+  // Find all items by productId
+  async findByProductId(productId: string): Promise<CartItem[]> {
+    return this.repository.find({
+      where: { productId },
+    });
+  }
+
+  // Find all items by productId and variantId
+  async findByProductAndVariant(productId: string, variantId: string): Promise<CartItem[]> {
+    return this.repository.find({
+      where: { productId, variantId },
+    });
+  }
+
+  // Delete items by productId
+  async deleteByProductId(productId: string): Promise<void> {
+    await this.repository.delete({ productId });
+  }
+
+  // Delete items by productId and variantId
+  async deleteByProductAndVariant(productId: string, variantId: string): Promise<void> {
+    await this.repository.delete({ productId, variantId });
+  }
 }

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductController } from './products.controller';
 import { ProductVariantImagesController } from './product-variant-images.controller';
@@ -9,6 +9,7 @@ import { ImageUploadModule } from '../image-upload/image-upload.module';
 import { ColorsModule } from '../colors/colors.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { QualitiesModule } from '../qualities/qualities.module';
+import { CartModule } from '../cart/cart.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { QualitiesModule } from '../qualities/qualities.module';
     ColorsModule,
     CategoriesModule,
     QualitiesModule,
+    forwardRef(() => CartModule),
   ],
   controllers: [ProductController, ProductVariantImagesController],
   providers: [ProductService, ProductRepository],
