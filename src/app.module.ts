@@ -8,6 +8,7 @@ import { ColorsModule } from './colors/colors.module';
 import { CategoriesModule } from './categories/categories.module';
 import { QualitiesModule } from './qualities/qualities.module';
 import { CartModule } from './cart/cart.module';
+import { PaymentModule } from './payments/payment.module';
 import { Admin } from './admin/entities/admin.entity';
 import { Product } from './products/entities/product.entity';
 import { Color } from './colors/entities/color.entity';
@@ -15,6 +16,7 @@ import { Category } from './categories/entities/category.entity';
 import { Quality } from './qualities/entities/quality.entity';
 import { Cart } from './cart/entities/cart.entity';
 import { CartItem } from './cart/entities/cart-item.entity';
+import { Order } from './orders/entities/order.entity';
 import { AdminRepository } from './admin/repositories/admin.repository';
 import { CategoriesService } from './categories/categories.service';
 import { QualitiesService } from './qualities/qualities.service';
@@ -33,7 +35,7 @@ console.log('Loading environment variables...', process.env.NODE_ENV);
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_DATABASE || 'furia_rock',
-      entities: [Admin, Product, Color, Category, Quality, Cart, CartItem],
+      entities: [Admin, Product, Color, Category, Quality, Cart, CartItem, Order],
       synchronize: process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
     }),
@@ -45,6 +47,7 @@ console.log('Loading environment variables...', process.env.NODE_ENV);
     CategoriesModule,
     QualitiesModule,
     CartModule,
+    PaymentModule,
     ConfigModule.forRoot({
       isGlobal: true, // Hace que las variables sean accesibles globalmente
     }),
