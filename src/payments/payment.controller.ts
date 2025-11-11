@@ -40,7 +40,18 @@ export class PaymentController {
     this.logger.debug(`Webhook payload: ${JSON.stringify(webhookData)}`);
 
     try {
-      // Validación defensiva: verificar que existan los campos mínimos necesarios
+      // 1. VALIDAR FIRMA DEL WEBHOOK (SEGURIDAD)
+      const isValidSignature = await this.paymentService.verifyWebhookSignature(
+        webhookData,
+      );
+
+      if (!isValidSignature) {
+        this.logger.error('❌ Invalid webhook signature - Possible fraud attempt');
+        // Responder 200 OK pero no procesar el webhook
+        return;
+      }
+
+      // 2. Validación defensiva: verificar que existan los campos mínimos necesarios
       if (!webhookData?.event) {
         this.logger.warn('Webhook received without event field');
         return;
@@ -54,13 +65,13 @@ export class PaymentController {
       const event = webhookData.event;
       const transaction = webhookData.data.transaction;
 
-      // Verificar que el evento sea de transacción
+      // 3. Verificar que el evento sea de transacción
       if (event !== 'transaction.updated') {
         this.logger.warn(`Unhandled webhook event: ${event}`);
         return;
       }
 
-      // Extraer campos necesarios con valores por defecto
+      // 4. Extraer campos necesarios
       const reference = transaction.reference;
       const wompi_transaction_id = transaction.id;
       const status = transaction.status;
@@ -71,10 +82,10 @@ export class PaymentController {
       }
 
       this.logger.log(
-        `Processing webhook for reference: ${reference} | Status: ${status}`,
+        `Processing webhook for reference: ${reference} | Status: ${status} | Transaction ID: ${wompi_transaction_id}`,
       );
 
-      // Mapear status de Wompi a nuestro OrderStatus
+      // 5. Mapear status de Wompi a nuestro OrderStatus
       let orderStatus: OrderStatus;
 
       switch (status?.toUpperCase()) {
@@ -94,7 +105,7 @@ export class PaymentController {
           orderStatus = OrderStatus.PENDING;
       }
 
-      // Actualizar estado de la orden
+      // 6. Actualizar estado de la orden
       await this.paymentService.updateOrderStatus(
         reference,
         orderStatus,

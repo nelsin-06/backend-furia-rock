@@ -25,6 +25,9 @@ export class Order {
   @Column({ nullable: true })
   wompi_transaction_id: string;
 
+  @Column()
+  session_id: string;
+
   @Column({
     type: 'enum',
     enum: OrderStatus,

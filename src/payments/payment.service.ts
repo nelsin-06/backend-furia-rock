@@ -19,6 +19,7 @@ export class PaymentService {
   private readonly wompiPublicKey: string;
   private readonly wompiPrivateKey: string;
   private readonly wompiIntegritySecret: string;
+  private readonly wompiEventsSecret: string;
   private readonly wompiBaseUrl: string;
   private readonly redirectUrl: string;
 
@@ -33,6 +34,9 @@ export class PaymentService {
     this.wompiIntegritySecret = this.configService.get<string>(
       'WOMPI_INTEGRITY_SECRET',
     );
+    this.wompiEventsSecret = this.configService.get<string>(
+      'WOMPI_EVENTS_SECRET',
+    );
     this.wompiBaseUrl = this.configService.get<string>('WOMPI_BASE_URL');
     this.redirectUrl = this.configService.get<string>('REDIRECT_URL');
 
@@ -43,6 +47,12 @@ export class PaymentService {
     ) {
       throw new Error(
         'Wompi configuration is missing. Check environment variables.',
+      );
+    }
+
+    if (!this.wompiEventsSecret) {
+      this.logger.warn(
+        '⚠️  WOMPI_EVENTS_SECRET not configured. Webhook signature validation will be skipped.',
       );
     }
   }
@@ -251,19 +261,111 @@ export class PaymentService {
     return hashHex;
   }
 
-  // Verificar firma de webhook
-  async verifyWebhookSignature(
-    payload: string,
-    signature: string,
-  ): Promise<boolean> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(payload);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const calculatedSignature = hashArray
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
+  // Verificar firma de webhook según documentación de Wompi
+  async verifyWebhookSignature(webhookData: any): Promise<boolean> {
+    // Si no hay evento secret configurado, loggear warning y permitir
+    if (!this.wompiEventsSecret) {
+      this.logger.warn(
+        '⚠️  Webhook signature validation skipped - WOMPI_EVENTS_SECRET not configured',
+      );
+      return true;
+    }
 
-    return calculatedSignature === signature;
+    try {
+      // Validar que existan los campos necesarios para verificar la firma
+      if (!webhookData?.signature?.checksum) {
+        this.logger.error('Webhook without signature.checksum');
+        return false;
+      }
+
+      if (!webhookData?.signature?.properties) {
+        this.logger.error('Webhook without signature.properties');
+        return false;
+      }
+
+      if (!webhookData?.timestamp) {
+        this.logger.error('Webhook without timestamp');
+        return false;
+      }
+
+      const { checksum, properties } = webhookData.signature;
+      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ checksum:", checksum)
+      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ properties:", properties)
+      const timestamp = webhookData.timestamp;
+
+      // 1. Extraer los valores de los campos especificados en signature.properties
+      const values: string[] = [];
+      
+      for (const propertyPath of properties) {
+        const value = this.getNestedProperty(webhookData, propertyPath);
+        console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ value:", value)
+        
+        if (value === undefined || value === null) {
+          this.logger.error(
+            `Property ${propertyPath} not found in webhook data`,
+          );
+          return false;
+        }
+        
+        values.push(String(value));
+      }
+
+      // 2. Concatenar los valores en el orden especificado
+      let concatenated = values.join('');
+      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:", concatenated)
+
+      // 3. Agregar el timestamp
+      concatenated += String(timestamp);
+
+      // 4. Agregar el evento secret
+      concatenated += this.wompiEventsSecret;
+      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:", concatenated)
+
+      this.logger.debug(`Signature concatenated string: ${concatenated}`);
+
+      // 5. Calcular SHA-256
+      const encoder = new TextEncoder();
+      const data = encoder.encode(concatenated);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const calculatedChecksum = hashArray
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      this.logger.debug(`Calculated checksum: ${calculatedChecksum}`);
+      this.logger.debug(`Received checksum: ${checksum}`);
+
+      // 6. Comparar con el checksum recibido
+      const isValid = calculatedChecksum === checksum;
+
+      if (isValid) {
+        this.logger.log('✅ Webhook signature verified successfully');
+      } else {
+        this.logger.error('❌ Webhook signature verification failed');
+      }
+
+      return isValid;
+    } catch (error) {
+      this.logger.error(
+        `Error verifying webhook signature: ${error.message}`,
+        error.stack,
+      );
+      return false;
+    }
+  }
+
+  // Helper para extraer propiedades anidadas de un objeto
+  private getNestedProperty(obj: any, path: string): any {
+    const keys = path.split('.');
+    let current = obj;
+
+    for (const key of keys) {
+      if (current === undefined || current === null) {
+        return undefined;
+      }
+      current = current[key];
+    }
+
+    return current;
   }
 }
