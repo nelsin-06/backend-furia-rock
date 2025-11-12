@@ -29,15 +29,20 @@ console.log('Loading environment variables...', process.env.NODE_ENV);
 @Module({
   imports: [
     TypeOrmModule.forRoot({
-      type: 'mysql',
+      type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT) || 3306,
-      username: process.env.DB_USERNAME || 'root',
+      port: parseInt(process.env.DB_PORT) || 5432,
+      username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_DATABASE || 'furia_rock',
       entities: [Admin, Product, Color, Category, Quality, Cart, CartItem, Order],
       synchronize: process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
+      // Enable SSL for non-local hosts (e.g. managed Postgres like Neon/Heroku)
+      ssl:
+        process.env.DB_HOST && process.env.DB_HOST !== 'localhost'
+          ? { rejectUnauthorized: false }
+          : false,
     }),
     AuthModule,
     ProductsModule,
