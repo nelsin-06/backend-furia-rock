@@ -23,10 +23,10 @@ export class Order {
   reference: string;
 
   @Column({ nullable: true })
-  wompi_transaction_id: string;
-
-  @Column()
   session_id: string;
+
+  @Column({ nullable: true })
+  wompi_transaction_id: string;
 
   @Column({
     type: 'enum',

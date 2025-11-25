@@ -81,9 +81,7 @@ export class PaymentService {
         const product = await this.productService.findOne(item.productId);
 
         if (!product) {
-          throw new BadRequestException(
-            `Product ${item.productId} not found`,
-          );
+          throw new BadRequestException(`Product ${item.productId} not found`);
         }
 
         if (!product.active) {
@@ -168,6 +166,7 @@ export class PaymentService {
         shipping_address,
         cart_snapshot: cartSnapshot,
         expires_at: expiresAt,
+        session_id: sessionId,
       });
 
       await this.orderRepository.save(order);
@@ -196,8 +195,11 @@ export class PaymentService {
         order_id: order.id,
       };
     } catch (error) {
-      this.logger.error(`Error creating checkout session: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `Error creating checkout session: ${error.message}`,
+        error.stack,
+      );
+
       if (
         error instanceof BadRequestException ||
         error instanceof InternalServerErrorException
@@ -219,11 +221,13 @@ export class PaymentService {
     const order = await this.orderRepository.findByReference(reference);
 
     if (!order) {
-      throw new NotFoundException(`Order with reference ${reference} not found`);
+      throw new NotFoundException(
+        `Order with reference ${reference} not found`,
+      );
     }
 
     order.status = status;
-    
+
     if (wompi_transaction_id) {
       order.wompi_transaction_id = wompi_transaction_id;
     }
@@ -235,7 +239,9 @@ export class PaymentService {
     const order = await this.orderRepository.findByReference(reference);
 
     if (!order) {
-      throw new NotFoundException(`Order with reference ${reference} not found`);
+      throw new NotFoundException(
+        `Order with reference ${reference} not found`,
+      );
     }
 
     return order;
@@ -248,7 +254,7 @@ export class PaymentService {
     currency: string,
   ): Promise<string> {
     const concatenatedString = `${reference}${amount_in_cents}${currency}${this.wompiIntegritySecret}`;
-    
+
     // Usar crypto.subtle para generar SHA-256
     const encoder = new TextEncoder();
     const data = encoder.encode(concatenatedString);
@@ -289,37 +295,52 @@ export class PaymentService {
       }
 
       const { checksum, properties } = webhookData.signature;
-      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ checksum:", checksum)
-      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ properties:", properties)
+      console.log(
+        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ checksum:',
+        checksum,
+      );
+      console.log(
+        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ properties:',
+        properties,
+      );
       const timestamp = webhookData.timestamp;
 
       // 1. Extraer los valores de los campos especificados en signature.properties
       const values: string[] = [];
-      
+
       for (const propertyPath of properties) {
         const value = this.getNestedProperty(webhookData, propertyPath);
-        console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ value:", value)
-        
+        console.log(
+          '🚀 ~ PaymentService ~ verifyWebhookSignature ~ value:',
+          value,
+        );
+
         if (value === undefined || value === null) {
           this.logger.error(
             `Property ${propertyPath} not found in webhook data`,
           );
           return false;
         }
-        
+
         values.push(String(value));
       }
 
       // 2. Concatenar los valores en el orden especificado
       let concatenated = values.join('');
-      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:", concatenated)
+      console.log(
+        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:',
+        concatenated,
+      );
 
       // 3. Agregar el timestamp
       concatenated += String(timestamp);
 
       // 4. Agregar el evento secret
       concatenated += this.wompiEventsSecret;
-      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:", concatenated)
+      console.log(
+        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:',
+        concatenated,
+      );
 
       this.logger.debug(`Signature concatenated string: ${concatenated}`);
 
