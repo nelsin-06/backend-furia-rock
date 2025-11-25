@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { ProductRepository } from './repositories/product.repository';
 import {
   CreateProductDto,
@@ -20,6 +20,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ProductService {
+  private readonly logger = new Logger(ProductService.name);
+
   constructor(
     private readonly productRepository: ProductRepository,
     private readonly imageUploadService: ImageUploadService,
@@ -58,7 +60,7 @@ export class ProductService {
   }
 
   async create(createProductDto: CreateProductDto): Promise<ProductDto> {
-    console.log(
+    this.logger.debug(
       '🚀 ~ ProductService ~ create ~ createProductDto:',
       createProductDto,
     );
@@ -71,7 +73,7 @@ export class ProductService {
     const quality = await this.qualitiesService.findOne(
       createProductDto.qualityId,
     );
-    console.log('🚀 ~ ProductService ~ create ~ quality:', quality);
+  this.logger.debug('🚀 ~ ProductService ~ create ~ quality:', quality);
     if (!quality) {
       throw new BadRequestException(
         `Quality with ID ${createProductDto.qualityId} not found`,
@@ -96,7 +98,7 @@ export class ProductService {
     product.categories = categories;
 
     const savedProduct = await this.productRepository.save(product);
-    console.log('🚀 ~ ProductService ~ create ~ savedProduct:', savedProduct);
+  this.logger.debug('🚀 ~ ProductService ~ create ~ savedProduct:', savedProduct);
 
     // Assign the quality object to the saved product for mapToDto
     // Convert QualityDto to Quality entity structure
@@ -313,9 +315,9 @@ export class ProductService {
     if (deleted) {
       try {
         await this.cartService.removeCartItemsByProduct(id);
-        console.log(`✅ Removed product ${id} from all carts`);
+        this.logger.log(`✅ Removed product ${id} from all carts`);
       } catch (error) {
-        console.error('❌ Error removing product from carts:', error);
+        this.logger.error('❌ Error removing product from carts', error?.stack);
         // Don't throw error here - the main deletion was successful
       }
     }
@@ -324,13 +326,13 @@ export class ProductService {
     if (deleted && allImages.length > 0) {
       try {
         await this.imageUploadService.removeMultiple(allImages);
-        console.log(
+        this.logger.log(
           `✅ Removed ${allImages.length} images from Cloudinary for deleted product: ${id}`,
         );
       } catch (error) {
-        console.error(
-          '❌ Error removing product images from Cloudinary:',
-          error,
+        this.logger.error(
+          '❌ Error removing product images from Cloudinary',
+          error?.stack,
         );
         // Don't throw error here - the main deletion was successful
       }
@@ -429,11 +431,11 @@ export class ProductService {
     if (oldImages.length > 0) {
       try {
         await this.imageUploadService.removeMultiple(oldImages);
-        console.log(
+        this.logger.log(
           `✅ Removed ${oldImages.length} old images from Cloudinary`,
         );
       } catch (error) {
-        console.error('❌ Error removing old images from Cloudinary:', error);
+        this.logger.error('❌ Error removing old images from Cloudinary', error?.stack);
         // Don't throw error here - the main operation was successful
       }
     }
@@ -491,10 +493,10 @@ export class ProductService {
         this.imageUploadService.extractPublicIdFromUrl(imageToDelete);
       if (publicId) {
         await this.imageUploadService.remove(publicId);
-        console.log(`✅ Removed image from Cloudinary: ${publicId}`);
+        this.logger.log(`✅ Removed image from Cloudinary: ${publicId}`);
       }
     } catch (error) {
-      console.error('❌ Error removing image from Cloudinary:', error);
+      this.logger.error('❌ Error removing image from Cloudinary', error?.stack);
       // Don't throw error here - the main operation was successful
     }
 
@@ -550,7 +552,7 @@ export class ProductService {
    * This method can be called periodically to remove unused images
    */
   async cleanupOrphanedImages(): Promise<{ removed: number; errors: number }> {
-    console.log('🧹 Starting orphaned images cleanup...');
+  this.logger.log('🧹 Starting orphaned images cleanup...');
 
     try {
       // Get all products with their images
@@ -568,7 +570,7 @@ export class ProductService {
         }
       });
 
-      console.log(
+      this.logger.log(
         `📊 Found ${usedImages.size} images in use across ${products.length} products`,
       );
 
@@ -580,7 +582,7 @@ export class ProductService {
 
       return { removed: 0, errors: 0 };
     } catch (error) {
-      console.error('❌ Error during cleanup:', error);
+      this.logger.error('❌ Error during cleanup', error?.stack);
       return { removed: 0, errors: 1 };
     }
   }
@@ -664,14 +666,14 @@ export class ProductService {
       await this.productRepository.update(productId, {
         active: shouldBeActive,
       });
-      console.log(
+      this.logger.log(
         `✅ Product ${productId} active status updated to: ${shouldBeActive}`,
       );
     }
   }
 
   private async mapToDto(product: Product): Promise<ProductDto> {
-    console.log('🚀 ~ ProductService ~ mapToDto ~ product:', product);
+    this.logger.debug('🚀 ~ ProductService ~ mapToDto ~ product:', product);
     let resolvedVariables: ProductVariable[] | null = null;
 
     if (product.variables && product.variables.length > 0) {

@@ -295,27 +295,27 @@ export class PaymentService {
       }
 
       const { checksum, properties } = webhookData.signature;
-      console.log(
-        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ checksum:',
-        checksum,
+      this.logger.debug(
+        `🚀 ~ PaymentService ~ verifyWebhookSignature ~ checksum: ${checksum}`,
       );
-      console.log(
-        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ properties:',
-        properties,
+      this.logger.debug(
+        `🚀 ~ PaymentService ~ verifyWebhookSignature ~ properties: ${JSON.stringify(properties)}`,
       );
       const timestamp = webhookData.timestamp;
-      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ webhookData:", webhookData)
+      this.logger.debug(
+        `🚀 ~ PaymentService ~ verifyWebhookSignature ~ webhookData: ${JSON.stringify(webhookData)}`,
+      );
 
       // 1. Extraer los valores de los campos especificados en signature.properties
       const values: string[] = [];
 
       for (const propertyPath of properties) {
-        console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ properties:", properties)
-        console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ propertyPath:", propertyPath)
-        const value = this.getNestedProperty(webhookData.data, propertyPath);
-        console.log(
-          '🚀 ~ PaymentService ~ verifyWebhookSignature ~ value:',
-          value,
+        this.logger.debug(
+          `🚀 ~ PaymentService ~ verifyWebhookSignature ~ propertyPath: ${propertyPath}`,
+        );
+        const value = this.getNestedProperty(webhookData, propertyPath);
+        this.logger.debug(
+          `🚀 ~ PaymentService ~ verifyWebhookSignature ~ value: ${value}`,
         );
 
         if (value === undefined || value === null) {
@@ -330,9 +330,8 @@ export class PaymentService {
 
       // 2. Concatenar los valores en el orden especificado
       let concatenated = values.join('');
-      console.log(
-        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:',
-        concatenated,
+      this.logger.debug(
+        `🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated: ${concatenated}`,
       );
 
       // 3. Agregar el timestamp
@@ -340,9 +339,8 @@ export class PaymentService {
 
       // 4. Agregar el evento secret
       concatenated += this.wompiEventsSecret;
-      console.log(
-        '🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated:',
-        concatenated,
+      this.logger.debug(
+        `🚀 ~ PaymentService ~ verifyWebhookSignature ~ concatenated: ${concatenated}`,
       );
 
       this.logger.debug(`Signature concatenated string: ${concatenated}`);

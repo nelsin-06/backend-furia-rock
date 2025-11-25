@@ -1,9 +1,11 @@
-import { Inject, Injectable, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { UploadApiResponse, v2 as Cloudinary } from 'cloudinary';
 import { Multer } from 'multer';
 
 @Injectable()
 export class ImageUploadService {
+  private readonly logger = new Logger(ImageUploadService.name);
+
   constructor(@Inject('CLOUDINARY') private readonly cloudinary: typeof Cloudinary) {}
 
   async upload(file: Express.Multer.File, productId: string): Promise<string> {
@@ -57,7 +59,10 @@ export class ImageUploadService {
         : publicIdWithExtension;
         
     } catch (error) {
-      console.error('Error extracting publicId from URL:', cloudinaryUrl, error);
+      this.logger.error(
+        `Error extracting publicId from URL: ${cloudinaryUrl}`,
+        error?.stack,
+      );
       return null;
     }
   }

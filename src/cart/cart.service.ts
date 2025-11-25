@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { CartRepository } from './repositories/cart.repository';
 import { CartItemRepository } from './repositories/cart-item.repository';
@@ -16,6 +17,7 @@ import { ProductService } from '../products/products.service';
 export class CartService {
   // Cart expiration: 15 days from last interaction
   private readonly CART_EXPIRATION_DAYS = 15;
+  private readonly logger = new Logger(CartService.name);
 
   constructor(
     private readonly cartRepository: CartRepository,
@@ -133,13 +135,13 @@ export class CartService {
     updateItemDto: UpdateCartItemDto,
   ): Promise<Cart> {
     const cart = await this.getOrCreateCart(sessionId);
-    console.log("🚀 ~ CartService ~ updateItem ~ cart:", cart)
+    this.logger.debug('🚀 ~ CartService ~ updateItem ~ cart:', cart);
 
     const cartItem = await this.cartItemRepository.findByCartAndItemId(
       cart.id,
       itemId,
     );
-    console.log("🚀 ~ CartService ~ updateItem ~ cartItem:", cartItem)
+    this.logger.debug('🚀 ~ CartService ~ updateItem ~ cartItem:', cartItem);
 
     if (!cartItem) {
       throw new NotFoundException('Item not found in cart');

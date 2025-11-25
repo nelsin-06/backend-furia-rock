@@ -27,8 +27,6 @@ export class CartItemRepository {
     cartId: string,
     itemId: string,
   ): Promise<CartItem | null> {
-    console.log("🚀 ~ CartItemRepository ~ findByCartAndItemId ~ itemId:", itemId)
-    console.log("🚀 ~ CartItemRepository ~ findByCartAndItemId ~ cartId:", cartId)
     return this.repository.findOne({
       where: { cartId, id: itemId },
     });

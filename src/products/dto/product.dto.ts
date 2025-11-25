@@ -77,7 +77,6 @@ export class CreateProductDto {
 
   @IsNotEmpty()
   @Transform(({ value }) => {
-    console.log('🚀 ~ CreateProductDto ~ value:', typeof value);
     // Handle comma-separated category IDs
     if (typeof value === 'string') {
       return value
@@ -114,7 +113,6 @@ export class UpdateProductDto {
 
   @IsOptional()
   @Transform(({ value }) => {
-    console.log('🚀 ~ CreateProductDto ~ value:', typeof value);
     // Handle comma-separated category IDs
     if (typeof value === 'string') {
       return value

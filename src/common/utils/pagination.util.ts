@@ -46,8 +46,7 @@ export class PaginationHelper {
     
     this.applyPagination(queryBuilder, options);
     
-    const data = await queryBuilder.getMany();
-    console.log("🚀 ~ PaginationHelper ~ executePaginatedQuery ~ data:", data[0])
+  const data = await queryBuilder.getMany();
 
     return {
       data,

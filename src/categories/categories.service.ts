@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { CategoryRepository } from './repositories/category.repository';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryDto } from './dto/category.dto';
 import { Category } from './entities/category.entity';
@@ -6,6 +6,8 @@ import { CategoryFilters } from './repositories/category.repository.entity';
 
 @Injectable()
 export class CategoriesService {
+  private readonly logger = new Logger(CategoriesService.name);
+
   constructor(
     private readonly categoryRepository: CategoryRepository,
   ) {}
@@ -131,7 +133,7 @@ export class CategoriesService {
       const category = this.categoryRepository.create(defaultCategoryData);
       await this.categoryRepository.save(category);
       
-      console.log('✅ Created default category: General');
+      this.logger.log('✅ Created default category: General');
     }
   }
 

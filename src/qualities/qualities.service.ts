@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { QualityRepository } from './repositories/quality.repository';
 import { CreateQualityDto, UpdateQualityDto, QualityDto } from './dto/quality.dto';
 import { Quality } from './entities/quality.entity';
@@ -6,6 +6,8 @@ import { QualityFilters } from './repositories/quality.repository.entity';
 
 @Injectable()
 export class QualitiesService {
+  private readonly logger = new Logger(QualitiesService.name);
+
   constructor(
     private readonly qualityRepository: QualityRepository,
   ) {}
@@ -104,7 +106,7 @@ export class QualitiesService {
       if (!existingQuality) {
         const quality = this.qualityRepository.create(qualityData);
         await this.qualityRepository.save(quality);
-        console.log(`✅ Created default quality: ${qualityData.name}`);
+        this.logger.log(`✅ Created default quality: ${qualityData.name}`);
       }
     }
   }

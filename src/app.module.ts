@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
@@ -24,8 +24,8 @@ import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import { ConfigModule } from '@nestjs/config';
 dotenv.config();
-
-console.log('Loading environment variables...', process.env.NODE_ENV);
+const bootstrapLogger = new Logger('AppModuleBootstrap');
+bootstrapLogger.log('Loading environment variables...', process.env.NODE_ENV);
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -59,6 +59,8 @@ console.log('Loading environment variables...', process.env.NODE_ENV);
   ],
 })
 export class AppModule implements OnModuleInit {
+  private readonly logger = new Logger(AppModule.name);
+
   constructor(
     private readonly adminRepository: AdminRepository,
     private readonly categoriesService: CategoriesService,
@@ -87,7 +89,7 @@ export class AppModule implements OnModuleInit {
       });
 
       await this.adminRepository.save(admin);
-      console.log(`Super admin created with username: ${adminUsername}`);
+      this.logger.log(`Super admin created with username: ${adminUsername}`);
     }
   }
 
@@ -95,7 +97,7 @@ export class AppModule implements OnModuleInit {
     try {
       await this.categoriesService.ensureDefaultCategoryExists();
     } catch (error) {
-      console.error('Error seeding default categories:', error);
+      this.logger.error('Error seeding default categories', error?.stack);
     }
   }
 
@@ -103,7 +105,7 @@ export class AppModule implements OnModuleInit {
     try {
       await this.qualitiesService.seedDefaultQualities();
     } catch (error) {
-      console.error('Error seeding default qualities:', error);
+      this.logger.error('Error seeding default qualities', error?.stack);
     }
   }
 }
