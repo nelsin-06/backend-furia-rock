@@ -304,12 +304,15 @@ export class PaymentService {
         properties,
       );
       const timestamp = webhookData.timestamp;
+      console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ webhookData:", webhookData)
 
       // 1. Extraer los valores de los campos especificados en signature.properties
       const values: string[] = [];
 
       for (const propertyPath of properties) {
-        const value = this.getNestedProperty(webhookData, propertyPath);
+        console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ properties:", properties)
+        console.log("🚀 ~ PaymentService ~ verifyWebhookSignature ~ propertyPath:", propertyPath)
+        const value = this.getNestedProperty(webhookData.data, propertyPath);
         console.log(
           '🚀 ~ PaymentService ~ verifyWebhookSignature ~ value:',
           value,
