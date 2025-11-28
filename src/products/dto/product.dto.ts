@@ -71,6 +71,10 @@ export class CreateProductDto {
   @IsString()
   name: string;
 
+  @IsString()
+  @IsOptional()
+  description?: string;
+
   @IsNumber({ maxDecimalPlaces: 2 })
   @Type(() => Number)
   price: number;
@@ -105,6 +109,10 @@ export class UpdateProductDto {
   @IsString()
   @IsOptional()
   name?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Type(() => Number)
@@ -202,6 +210,7 @@ export class ProductQueryDto {
 export class ProductDto {
   id: string;
   name: string;
+  description: string;
   price: number;
   categories: CategoryDto[];
   quality: QualityDto;

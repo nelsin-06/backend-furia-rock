@@ -37,6 +37,9 @@ export class Product {
   @Index('idx_product_name')
   name: string;
 
+  @Column({ type: 'text', default: '' })
+  description: string;
+
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price: number;
 

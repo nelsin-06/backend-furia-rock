@@ -88,6 +88,7 @@ export class ProductService {
 
     const product = this.productRepository.create({
       name: createProductDto.name,
+      description: createProductDto.description || '',
       price: createProductDto.price,
       active: false, // Always start as inactive
       qualityId: createProductDto.qualityId,
@@ -226,6 +227,7 @@ export class ProductService {
     // Update basic fields
     const updateData: any = {
       name: updateProductDto.name,
+      description: updateProductDto.description,
       price: updateProductDto.price,
       qualityId: updateProductDto.qualityId,
       active: updateProductDto.active,
@@ -700,6 +702,7 @@ export class ProductService {
     return {
       id: product.id,
       name: product.name,
+      description: product.description,
       price: product.price,
       categories:
         product.categories?.map((category) => ({
