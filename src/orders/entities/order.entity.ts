@@ -14,6 +14,15 @@ export enum OrderStatus {
   ERROR = 'ERROR',
 }
 
+export enum TrackingStatus {
+  NOT_STARTED = 'NOT_STARTED',       // Pago aprobado, aún no se prepara
+  PREPARING = 'PREPARING',           // En preparación
+  SHIPPED = 'SHIPPED',               // Enviado
+  IN_TRANSIT = 'IN_TRANSIT',         // En tránsito
+  DELIVERED = 'DELIVERED',           // Entregado
+  RETURNED = 'RETURNED',             // Devuelto
+}
+
 @Entity('orders')
 export class Order {
   @PrimaryGeneratedColumn('uuid')
@@ -94,6 +103,27 @@ export class Order {
 
   @Column({ type: 'text', nullable: true })
   error_message: string;
+
+  // Estado de seguimiento del paquete (solo aplica cuando status = APPROVED)
+  @Column({
+    type: 'enum',
+    enum: TrackingStatus,
+    default: TrackingStatus.NOT_STARTED,
+    nullable: true,
+  })
+  tracking_status: TrackingStatus;
+
+  @Column({ nullable: true })
+  tracking_number: string;
+
+  @Column({ type: 'text', nullable: true })
+  tracking_notes: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  shipped_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  delivered_at: Date;
 
   @CreateDateColumn()
   created_at: Date;

@@ -12,6 +12,7 @@ import { OrderRepository } from '../orders/repositories/order.repository';
 import { CartService } from '../cart/cart.service';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
 import { ProductService } from '../products/products.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class PaymentService {
@@ -28,6 +29,7 @@ export class PaymentService {
     private readonly orderRepository: OrderRepository,
     private readonly cartService: CartService,
     private readonly productService: ProductService,
+    private readonly mailService: MailService,
   ) {
     this.wompiPublicKey = this.configService.get<string>('WOMPI_PUBLIC_KEY');
     this.wompiPrivateKey = this.configService.get<string>('WOMPI_PRIVATE_KEY');
@@ -232,7 +234,27 @@ export class PaymentService {
       order.wompi_transaction_id = wompi_transaction_id;
     }
 
-    return await this.orderRepository.save(order);
+    const savedOrder = await this.orderRepository.save(order);
+
+    // Enviar correo de confirmación cuando el pago es APPROVED
+    if (status === OrderStatus.APPROVED && order.customer_email) {
+      try {
+        await this.mailService.sendOrderConfirmation(
+          order.customer_email,
+          reference,
+        );
+        this.logger.log(
+          `✅ Confirmation email sent to ${order.customer_email} for order ${reference}`,
+        );
+      } catch (error) {
+        // No lanzar error si falla el envío de correo, solo loggear
+        this.logger.error(
+          `❌ Failed to send confirmation email for order ${reference}: ${error.message}`,
+        );
+      }
+    }
+
+    return savedOrder;
   }
 
   async getOrderByReference(reference: string): Promise<Order> {

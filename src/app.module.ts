@@ -9,6 +9,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { QualitiesModule } from './qualities/qualities.module';
 import { CartModule } from './cart/cart.module';
 import { PaymentModule } from './payments/payment.module';
+import { OrdersModule } from './orders/orders.module';
 import { Admin } from './admin/entities/admin.entity';
 import { Product } from './products/entities/product.entity';
 import { Color } from './colors/entities/color.entity';
@@ -53,6 +54,7 @@ bootstrapLogger.log('Loading environment variables...', process.env.NODE_ENV);
     QualitiesModule,
     CartModule,
     PaymentModule,
+    OrdersModule,
     ConfigModule.forRoot({
       isGlobal: true, // Hace que las variables sean accesibles globalmente
     }),
