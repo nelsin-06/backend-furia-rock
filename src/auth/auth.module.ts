@@ -6,12 +6,14 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AdminModule } from '../admin/admin.module';
 
+console.log('Loading AuthModule with JWT_SECRET:', process.env.JWT_SECRET);
+
 @Module({
   imports: [
     AdminModule,
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'A901KD098J89N98RC23',
+      secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: process.env.JWT_EXPIRES || '5d' },
     }),
   ],

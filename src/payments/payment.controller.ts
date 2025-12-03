@@ -8,7 +8,7 @@ import {
   Get,
   Param,
   Headers,
-  All
+  All,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import {
@@ -16,12 +16,16 @@ import {
   CheckoutResponseDto,
 } from './dto/payment.dto';
 import { OrderStatus } from '../orders/entities/order.entity';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Payments')
 @Controller('payments')
 export class PaymentController {
   private readonly logger = new Logger(PaymentController.name);
 
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService
+  ) {}
 
   @Post('create-session')
   @HttpCode(HttpStatus.OK)

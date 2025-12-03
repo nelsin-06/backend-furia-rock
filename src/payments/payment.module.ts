@@ -9,6 +9,7 @@ import { CartModule } from '../cart/cart.module';
 import { ProductsModule } from '../products/products.module';
 import { MailModule } from '../mail/mail.module';
 import { TelegramModule } from '../telegram/telegram.module';
+import { ColorsModule } from '../colors/colors.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { TelegramModule } from '../telegram/telegram.module';
     ProductsModule,
     MailModule,
     TelegramModule,
+    ColorsModule,
   ],
   controllers: [PaymentController],
   providers: [PaymentService, OrderRepository],

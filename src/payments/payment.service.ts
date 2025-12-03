@@ -14,6 +14,7 @@ import { Order, OrderStatus } from '../orders/entities/order.entity';
 import { ProductService } from '../products/products.service';
 import { MailService } from '../mail/mail.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { ColorsService } from '../colors/colors.service';
 
 @Injectable()
 export class PaymentService {
@@ -32,6 +33,7 @@ export class PaymentService {
     private readonly productService: ProductService,
     private readonly mailService: MailService,
     private readonly telegramService: TelegramService,
+    private readonly colorsService: ColorsService,
   ) {
     this.wompiPublicKey = this.configService.get<string>('WOMPI_PUBLIC_KEY');
     this.wompiPrivateKey = this.configService.get<string>('WOMPI_PRIVATE_KEY');
@@ -109,6 +111,21 @@ export class PaymentService {
         const currentPrice = Number(product.price);
         const itemTotal = item.quantity * (currentPrice - item.discount);
 
+        // Obtener la primera imagen de la variante (URL de Cloudinary)
+        const imageUrl = variant.images && variant.images.length > 0 ? variant.images[0] : null;
+
+        // Obtener el nombre del color desde la base de datos
+        let colorName = 'N/A';
+        if (variant.colorId) {
+          const colors = await this.colorsService.findByIds([variant.colorId]);
+          if (colors.length > 0) {
+            colorName = colors[0].name;
+          }
+        }
+
+        // Obtener el nombre de la calidad del producto
+        const qualityName = product.quality?.name || 'N/A';
+
         cartSnapshot.items.push({
           productId: item.productId,
           variantId: item.variantId,
@@ -118,7 +135,9 @@ export class PaymentService {
           discount: item.discount,
           total: itemTotal,
           productName: product.name,
-          colorName: variant.colorId,
+          colorName: colorName,
+          qualityName: qualityName,
+          imageUrl: imageUrl,
         });
 
         cartSnapshot.subtotal += currentPrice * item.quantity;
@@ -277,6 +296,16 @@ export class PaymentService {
       throw new NotFoundException(
         `Order with reference ${reference} not found`,
       );
+    }
+
+    return order;
+  }
+
+  async getOrderById(id: string): Promise<Order> {
+    const order = await this.orderRepository.findOne({ where: { id } });
+
+    if (!order) {
+      throw new NotFoundException(`Order with id ${id} not found`);
     }
 
     return order;

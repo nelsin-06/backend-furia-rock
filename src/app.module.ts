@@ -31,11 +31,11 @@ bootstrapLogger.log('Loading environment variables...', process.env.NODE_ENV);
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT) || 5432,
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
-      database: process.env.DB_DATABASE || 'furia_rock',
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT),
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_DATABASE,
       entities: [Admin, Product, Color, Category, Quality, Cart, CartItem, Order],
       synchronize: process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
@@ -57,6 +57,7 @@ bootstrapLogger.log('Loading environment variables...', process.env.NODE_ENV);
     OrdersModule,
     ConfigModule.forRoot({
       isGlobal: true, // Hace que las variables sean accesibles globalmente
+      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`, 
     }),
   ],
 })
@@ -76,8 +77,8 @@ export class AppModule implements OnModuleInit {
   }
 
   private async seedSuperAdmin() {
-    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminUsername = process.env.ADMIN_USERNAME;
+    const adminPassword = process.env.ADMIN_PASSWORD;
 
     const existingAdmin = await this.adminRepository.findByUsername(
       adminUsername,

@@ -89,6 +89,8 @@ export class Order {
       total: number;
       productName?: string;
       colorName?: string;
+      qualityName?: string;
+      imageUrl?: string;
     }>;
     subtotal: number;
     discountTotal: number;

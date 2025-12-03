@@ -93,7 +93,6 @@ export class MailService {
         }),
         items: formattedItems,
         subtotal: this.formatPrice(order.cart_snapshot?.subtotal || 0),
-        shipping: this.formatPrice(10000), // Envío fijo por ahora
         total: this.formatPrice(order.amount_in_cents / 100),
         shippingAddress: order.shipping_address,
         year: new Date().getFullYear(),

@@ -8,10 +8,12 @@ import {
   UseInterceptors,
   UploadedFiles,
   ParseIntPipe,
-  BadRequestException
+  BadRequestException,
+  UseGuards
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './products.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('products')
 export class ProductVariantImagesController {
@@ -24,6 +26,7 @@ export class ProductVariantImagesController {
    * POST /products/:productId/variants/:variantIndex/images
    */
   @Post(':productId/variants/:variantIndex/images')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(FilesInterceptor('images', 10, {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
     fileFilter: (_req, file, cb) => {
@@ -59,6 +62,7 @@ export class ProductVariantImagesController {
       cb(null, true);
     },
   }))
+  @UseGuards(JwtAuthGuard)
   async replaceVariantImages(
     @Param('productId') productId: string,
     @Param('variantIndex', ParseIntPipe) variantIndex: number,
@@ -76,6 +80,7 @@ export class ProductVariantImagesController {
    * DELETE /products/:productId/variants/:variantIndex/images/:imageIndex
    */
   @Delete(':productId/variants/:variantIndex/images/:imageIndex')
+  @UseGuards(JwtAuthGuard)
   async deleteVariantImage(
     @Param('productId') productId: string,
     @Param('variantIndex', ParseIntPipe) variantIndex: number,
@@ -89,6 +94,7 @@ export class ProductVariantImagesController {
    * PUT /products/:productId/variants/:variantIndex/images/reorder
    */
   @Put(':productId/variants/:variantIndex/images/reorder')
+  @UseGuards(JwtAuthGuard)
   async reorderVariantImages(
     @Param('productId') productId: string,
     @Param('variantIndex', ParseIntPipe) variantIndex: number,

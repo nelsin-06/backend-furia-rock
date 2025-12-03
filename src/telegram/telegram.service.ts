@@ -65,12 +65,25 @@ export class TelegramService implements OnModuleInit {
       minimumFractionDigits: 0,
     }).format(order.amount_in_cents / 100);
 
+    const formatPrice = (amount: number) =>
+      new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+      }).format(amount);
+
     const itemsList = order.cart_snapshot.items
       .map(
         (item) =>
-          `  • ${item.productName || 'Producto'} (${item.talla}) x${item.quantity}`,
+          `  📌 <b>${item.productName || 'Producto'}</b>
+     • Calidad: ${item.qualityName || 'N/A'}
+     • Color: ${item.colorName || 'N/A'}
+     • Talla: ${item.talla}
+     • Cantidad: ${item.quantity}
+     • Precio: ${formatPrice(item.price)}
+     • ID: <code>${item.productId}</code>`,
       )
-      .join('\n');
+      .join('\n\n');
 
     const message = `
 🎸 <b>¡NUEVA ORDEN PAGADA!</b> 🎸
@@ -86,6 +99,7 @@ export class TelegramService implements OnModuleInit {
 • Documento: ${order.customer_data.legal_id_type} ${order.customer_data.legal_id}
 
 📦 <b>PRODUCTOS (${order.cart_snapshot.items.length})</b>
+
 ${itemsList}
 
 🚚 <b>DIRECCIÓN DE ENVÍO</b>

@@ -15,6 +15,7 @@ import {
   UpdateProductDto,
   ProductQueryDto,
 } from './dto/product.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('products')
 export class ProductController {
@@ -37,7 +38,7 @@ export class ProductController {
   }
 
   @Post()
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async create(
     @Body() createProductDto: CreateProductDto, //CreateProductDto,
   ) {
@@ -46,6 +47,7 @@ export class ProductController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   async update(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
@@ -58,6 +60,7 @@ export class ProductController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string) {
     const success = await this.productService.remove(id);
     if (!success) {
