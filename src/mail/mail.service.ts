@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import * as handlebars from 'handlebars';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Transporter } from 'nodemailer';
+import { Order } from '../orders/entities/order.entity';
 
 @Injectable()
 export class MailService {
@@ -34,6 +38,21 @@ export class MailService {
     }
   }
 
+  private loadTemplate(templateName: string, variables: Record<string, any>): string {
+    const templatePath = path.join(__dirname, 'templates', `${templateName}.hbs`);
+    const templateSource = fs.readFileSync(templatePath, 'utf8');
+    const template = handlebars.compile(templateSource);
+    return template(variables);
+  }
+
+  private formatPrice(amount: number): string {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  }
+
   async sendMail(to: string, subject: string, text: string, html?: string): Promise<boolean> {
     try {
       const from = this.configService.get<string>('SMTP_FROM') || 'noreply@furia-rock.com';
@@ -55,14 +74,56 @@ export class MailService {
     }
   }
 
-  async sendOrderConfirmation(email: string, orderReference: string): Promise<boolean> {
-    const subject = 'mensaje de test';
-    const text = 'hola este es un mensaje de test';
-    const html = `
-      <h1>hola este es un mensaje de test</h1>
-      <p>Referencia de orden: ${orderReference}</p>
-    `;
+  async sendOrderConfirmation(order: Order): Promise<boolean> {
+    try {
+      // Preparar los items con formato de precio
+      const formattedItems = order.cart_snapshot.items.map((item) => ({
+        ...item,
+        totalFormatted: this.formatPrice(item.total),
+      }));
 
-    return this.sendMail(email, subject, text, html);
+      // Preparar variables para el template
+      const templateVariables = {
+        customerName: order.customer_data?.full_name || 'Cliente',
+        orderReference: order.reference,
+        orderDate: new Date(order.created_at).toLocaleDateString('es-CO', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
+        items: formattedItems,
+        subtotal: this.formatPrice(order.cart_snapshot?.subtotal || 0),
+        shipping: this.formatPrice(10000), // Envío fijo por ahora
+        total: this.formatPrice(order.amount_in_cents / 100),
+        shippingAddress: order.shipping_address,
+        year: new Date().getFullYear(),
+      };
+
+      // Cargar y compilar template
+      const html = this.loadTemplate('order-confirmation', templateVariables);
+
+      // Texto plano como fallback
+      const text = `
+¡Gracias por tu compra, ${templateVariables.customerName}!
+
+Referencia de pedido: #${order.reference}
+Fecha: ${templateVariables.orderDate}
+Total: ${templateVariables.total}
+
+Te notificaremos cuando tu pedido sea enviado.
+
+© ${templateVariables.year} Furia Rock
+      `.trim();
+
+      const subject = `Confirmación de Pedido #${order.reference} - Furia Rock`;
+
+      return await this.sendMail(order.customer_email, subject, text, html);
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to send order confirmation email: ${error.message}`,
+        error.stack,
+      );
+      return false;
+    }
   }
 }

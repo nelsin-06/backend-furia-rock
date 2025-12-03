@@ -255,10 +255,7 @@ export class PaymentService {
       // 2. Enviar correo de confirmación al cliente
       if (order.customer_email) {
         try {
-          await this.mailService.sendOrderConfirmation(
-            order.customer_email,
-            reference,
-          );
+          await this.mailService.sendOrderConfirmation(savedOrder);
           this.logger.log(
             `✅ Confirmation email sent to ${order.customer_email} for order ${reference}`,
           );

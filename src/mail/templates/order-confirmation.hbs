@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirmación de Pedido - Furia Rock</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+  <!-- Container Principal -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f5f5; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <!-- Header -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px;">
+          <tr>
+            <td align="center" style="padding: 30px 0;">
+              <h1 style="margin: 0; color: #f97316; font-size: 32px; font-weight: bold; letter-spacing: 2px;">FURIA ROCK</h1>
+              <p style="margin: 8px 0 0; color: #6b7280; font-size: 14px;">Tu fuente de merchandise de bandas</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Content Card -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <!-- Greeting -->
+          <tr>
+            <td style="padding: 40px 40px 20px;">
+              <h2 style="margin: 0; color: #1f2937; font-size: 24px; font-weight: 600;">
+                ¡Gracias por tu compra, {{customerName}}!
+              </h2>
+              <p style="margin: 12px 0 0; color: #6b7280; font-size: 15px; line-height: 1.5;">
+                Hemos recibido tu pedido y lo estamos procesando. Aquí tienes los detalles:
+              </p>
+            </td>
+          </tr>
+
+          <!-- Order Info -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Referencia de pedido:</span>
+                    <span style="color: #1f2937; font-size: 14px; font-weight: 600;"> #{{orderReference}}</span>
+                  </td>
+                  <td align="right" style="padding: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Fecha del pedido:</span>
+                    <span style="color: #1f2937; font-size: 14px; font-weight: 600;"> {{orderDate}}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Products Section -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <h3 style="margin: 0 0 20px; color: #1f2937; font-size: 16px; font-weight: 600;">
+                Resumen del Pedido
+              </h3>
+
+              <!-- Products List -->
+              {{#each items}}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 16px;">
+                <tr>
+                  <td width="70" style="vertical-align: top;">
+                    {{#if this.imageUrl}}
+                    <img src="{{this.imageUrl}}" alt="{{this.productName}}" width="60" height="60" style="border-radius: 6px; object-fit: cover; background-color: #f3f4f6;">
+                    {{else}}
+                    <div style="width: 60px; height: 60px; background-color: #f3f4f6; border-radius: 6px;"></div>
+                    {{/if}}
+                  </td>
+                  <td style="vertical-align: top; padding-left: 12px;">
+                    <p style="margin: 0; color: #1f2937; font-size: 15px; font-weight: 600;">{{this.productName}}</p>
+                    <p style="margin: 4px 0 0; color: #6b7280; font-size: 13px;">
+                      Color: {{this.colorName}}, Talla: {{this.talla}}, Cantidad: {{this.quantity}}
+                    </p>
+                  </td>
+                  <td align="right" style="vertical-align: top;">
+                    <p style="margin: 0; color: #1f2937; font-size: 15px; font-weight: 600;">{{this.totalFormatted}}</p>
+                  </td>
+                </tr>
+              </table>
+              {{/each}}
+            </td>
+          </tr>
+
+          <!-- Totals Section -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Subtotal</span>
+                  </td>
+                  <td align="right" style="padding: 8px 0;">
+                    <span style="color: #1f2937; font-size: 14px;">{{subtotal}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Envío</span>
+                  </td>
+                  <td align="right" style="padding: 8px 0;">
+                    <span style="color: #1f2937; font-size: 14px;">{{shipping}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 16px 0 0; border-top: 1px solid #e5e7eb;">
+                    <span style="color: #1f2937; font-size: 16px; font-weight: 700;">Total</span>
+                  </td>
+                  <td align="right" style="padding: 16px 0 0; border-top: 1px solid #e5e7eb;">
+                    <span style="color: #f97316; font-size: 18px; font-weight: 700;">{{total}}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Shipping Address -->
+          <tr>
+            <td style="padding: 0 40px 40px;">
+              <h3 style="margin: 0 0 16px; color: #1f2937; font-size: 16px; font-weight: 600;">
+                Dirección de Envío
+              </h3>
+              <p style="margin: 0; color: #4b5563; font-size: 14px; line-height: 1.6;">
+                <strong>{{shippingAddress.name}}</strong><br>
+                {{shippingAddress.address_line_1}}{{#if shippingAddress.address_line_2}}, {{shippingAddress.address_line_2}}{{/if}}<br>
+                {{shippingAddress.city}}, {{shippingAddress.region}}<br>
+                {{shippingAddress.country}}
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Footer -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px;">
+          <tr>
+            <td align="center" style="padding: 30px 40px;">
+              <p style="margin: 0; color: #6b7280; font-size: 13px;">
+                © {{year}} Furia Rock. Todos los derechos reservados.
+              </p>
+              <p style="margin: 8px 0 0; color: #6b7280; font-size: 13px;">
+                Si tienes alguna pregunta, responde a este correo electrónico o contáctanos en 
+                <a href="mailto:soporte@furiarock.com" style="color: #f97316; text-decoration: none;">soporte@furiarock.com</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
