@@ -13,6 +13,7 @@ import { CartService } from '../cart/cart.service';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
 import { ProductService } from '../products/products.service';
 import { MailService } from '../mail/mail.service';
+import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class PaymentService {
@@ -30,6 +31,7 @@ export class PaymentService {
     private readonly cartService: CartService,
     private readonly productService: ProductService,
     private readonly mailService: MailService,
+    private readonly telegramService: TelegramService,
   ) {
     this.wompiPublicKey = this.configService.get<string>('WOMPI_PUBLIC_KEY');
     this.wompiPrivateKey = this.configService.get<string>('WOMPI_PRIVATE_KEY');
@@ -236,21 +238,35 @@ export class PaymentService {
 
     const savedOrder = await this.orderRepository.save(order);
 
-    // Enviar correo de confirmación cuando el pago es APPROVED
-    if (status === OrderStatus.APPROVED && order.customer_email) {
+    // Enviar notificaciones cuando el pago es APPROVED
+    if (status === OrderStatus.APPROVED) {
+      // 1. Notificar al equipo interno por Telegram
       try {
-        await this.mailService.sendOrderConfirmation(
-          order.customer_email,
-          reference,
-        );
+        await this.telegramService.sendOrderNotification(savedOrder);
         this.logger.log(
-          `✅ Confirmation email sent to ${order.customer_email} for order ${reference}`,
+          `✅ Telegram notification sent for order ${reference}`,
         );
       } catch (error) {
-        // No lanzar error si falla el envío de correo, solo loggear
         this.logger.error(
-          `❌ Failed to send confirmation email for order ${reference}: ${error.message}`,
+          `❌ Failed to send Telegram notification for order ${reference}: ${error.message}`,
         );
+      }
+
+      // 2. Enviar correo de confirmación al cliente
+      if (order.customer_email) {
+        try {
+          await this.mailService.sendOrderConfirmation(
+            order.customer_email,
+            reference,
+          );
+          this.logger.log(
+            `✅ Confirmation email sent to ${order.customer_email} for order ${reference}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Failed to send confirmation email for order ${reference}: ${error.message}`,
+          );
+        }
       }
     }
 
@@ -335,7 +351,7 @@ export class PaymentService {
         this.logger.debug(
           `🚀 ~ PaymentService ~ verifyWebhookSignature ~ propertyPath: ${propertyPath}`,
         );
-        const value = this.getNestedProperty(webhookData, propertyPath);
+        const value = this.getNestedProperty(webhookData.data, propertyPath);
         this.logger.debug(
           `🚀 ~ PaymentService ~ verifyWebhookSignature ~ value: ${value}`,
         );

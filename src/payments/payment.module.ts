@@ -8,6 +8,7 @@ import { OrderRepository } from '../orders/repositories/order.repository';
 import { CartModule } from '../cart/cart.module';
 import { ProductsModule } from '../products/products.module';
 import { MailModule } from '../mail/mail.module';
+import { TelegramModule } from '../telegram/telegram.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { MailModule } from '../mail/mail.module';
     CartModule,
     ProductsModule,
     MailModule,
+    TelegramModule,
   ],
   controllers: [PaymentController],
   providers: [PaymentService, OrderRepository],
