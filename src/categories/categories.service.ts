@@ -15,17 +15,31 @@ export class CategoriesService {
   async findAll(filters: CategoryFilters) {
     const result = await this.categoryRepository.findWithFilters(filters);
     
-    const categoriesWithDto = result.data.map(category => this.mapToDto(category));
+    // Cargar hijas para cada categoría padre
+    const categoriesWithChildren = await Promise.all(
+      result.data.map(async (parent) => {
+        const children = await this.categoryRepository.findChildrenByParentId(parent.id);
+        return this.mapToDto(parent, children);
+      })
+    );
 
     return {
       ...result,
-      data: categoriesWithDto,
+      data: categoriesWithChildren,
     };
   }
 
   async findOne(id: string): Promise<CategoryDto | null> {
-    const category = await this.categoryRepository.findOne({ where: { id } });
-    return category ? this.mapToDto(category) : null;
+    const category = await this.categoryRepository.findOne({ 
+      where: { id },
+      relations: ['parent', 'children']
+    });
+    
+    if (!category) return null;
+    
+    // Si tiene hijas, cargarlas
+    const children = category.children || [];
+    return this.mapToDto(category, children);
   }
 
   async findByIds(ids: string[]): Promise<Category[]> {
@@ -33,13 +47,32 @@ export class CategoriesService {
   }
 
   async create(createCategoryDto: CreateCategoryDto): Promise<CategoryDto> {
-    // Check if name already exists
+    // Validar que el parentId existe si se proporciona
+    if (createCategoryDto.parentId) {
+      const parent = await this.categoryRepository.findOne({ 
+        where: { id: createCategoryDto.parentId } 
+      });
+      
+      if (!parent) {
+        throw new BadRequestException(`Parent category with id "${createCategoryDto.parentId}" not found`);
+      }
+      
+      // Validar que el padre no sea una categoría hija (solo 2 niveles)
+      if (parent.parentId) {
+        throw new BadRequestException('Cannot create a subcategory of a subcategory. Only 2 levels allowed.');
+      }
+    }
+
+    // Validar nombre único por nivel (mismo nombre puede existir en diferentes niveles)
     const existingCategory = await this.categoryRepository.findOne({ 
-      where: { name: createCategoryDto.name } 
+      where: { 
+        name: createCategoryDto.name,
+        parentId: createCategoryDto.parentId || null
+      } 
     });
     
     if (existingCategory) {
-      throw new BadRequestException(`Category with name "${createCategoryDto.name}" already exists`);
+      throw new BadRequestException(`Category with name "${createCategoryDto.name}" already exists at this level`);
     }
 
     // If setting as default, ensure only one default exists
@@ -59,14 +92,50 @@ export class CategoriesService {
       throw new NotFoundException('Category not found');
     }
 
-    // Check if new name already exists (if name is being updated)
+    // Validar parentId si se está actualizando
+    if (updateCategoryDto.parentId !== undefined) {
+      if (updateCategoryDto.parentId === id) {
+        throw new BadRequestException('A category cannot be its own parent');
+      }
+      
+      if (updateCategoryDto.parentId) {
+        const parent = await this.categoryRepository.findOne({ 
+          where: { id: updateCategoryDto.parentId } 
+        });
+        
+        if (!parent) {
+          throw new BadRequestException(`Parent category not found`);
+        }
+        
+        // Validar que no se cree un ciclo
+        if (parent.parentId) {
+          throw new BadRequestException('Cannot set a subcategory as parent. Only 2 levels allowed.');
+        }
+        
+        // Validar que la categoría a actualizar no tenga hijas (no puede convertirse en hija si tiene hijas)
+        const hasChildren = await this.categoryRepository.countByParentId(id);
+        
+        if (hasChildren > 0) {
+          throw new BadRequestException('Cannot convert a parent category into a child category. Remove children first.');
+        }
+      }
+    }
+
+    // Check if new name already exists (if name is being updated) - validar por nivel
     if (updateCategoryDto.name && updateCategoryDto.name !== existingCategory.name) {
+      const newParentId = updateCategoryDto.parentId !== undefined 
+        ? updateCategoryDto.parentId 
+        : existingCategory.parentId;
+      
       const nameExists = await this.categoryRepository.findOne({ 
-        where: { name: updateCategoryDto.name } 
+        where: { 
+          name: updateCategoryDto.name,
+          parentId: newParentId || null
+        } 
       });
       
       if (nameExists) {
-        throw new BadRequestException(`Category with name "${updateCategoryDto.name}" already exists`);
+        throw new BadRequestException(`Category with name "${updateCategoryDto.name}" already exists at this level`);
       }
     }
 
@@ -76,9 +145,15 @@ export class CategoriesService {
     }
 
     await this.categoryRepository.update(id, updateCategoryDto);
-    const updatedCategory = await this.categoryRepository.findOne({ where: { id } });
+    const updatedCategory = await this.categoryRepository.findOne({ 
+      where: { id },
+      relations: ['parent', 'children']
+    });
     
-    return updatedCategory ? this.mapToDto(updatedCategory) : null;
+    if (!updatedCategory) return null;
+    
+    const children = updatedCategory.children || [];
+    return this.mapToDto(updatedCategory, children);
   }
 
   async remove(id: string): Promise<boolean> {
@@ -96,6 +171,16 @@ export class CategoriesService {
       throw new BadRequestException(
         `Cannot delete category "${category.name}" because it is being used by ${category.products.length} product(s). ` +
         'Please remove this category from all products before deleting.'
+      );
+    }
+
+    // Validar que no se elimine un padre si tiene hijas
+    const hasChildren = await this.categoryRepository.countByParentId(id);
+    
+    if (hasChildren > 0) {
+      throw new BadRequestException(
+        `Cannot delete category "${category.name}" because it has ${hasChildren} subcategory(ies). ` +
+        'Please delete or reassign all subcategories first.'
       );
     }
 
@@ -154,14 +239,26 @@ export class CategoriesService {
     }
   }
 
-  private mapToDto(category: Category): CategoryDto {
-    return {
+  private mapToDto(category: Category, children?: Category[]): CategoryDto {
+    const dto: CategoryDto = {
       id: category.id,
       name: category.name,
       default: category.default,
       active: category.active,
+      parentId: category.parentId || null,
       createdAt: category.createdAt,
       updatedAt: category.updatedAt,
     };
+
+    // Incluir hijas si se proporcionan
+    if (children && children.length > 0) {
+      dto.children = children.map(child => this.mapToDto(child));
+    } else if (category.children && category.children.length > 0) {
+      dto.children = category.children.map(child => this.mapToDto(child));
+    } else {
+      dto.children = [];
+    }
+
+    return dto;
   }
 }

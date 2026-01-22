@@ -15,10 +15,22 @@ export class CategoryRepository {
   async findWithFilters(filters: CategoryFilters) {
     const queryBuilder = this.repository.createQueryBuilder('category');
     
+    // Por defecto, filtrar solo categorías padre (sin parentId)
+    if (!filters.includeChildren) {
+      queryBuilder.where('category.parentId IS NULL');
+    }
+    
     this.applyFilters(queryBuilder, filters);
     this.applySorting(queryBuilder, filters.sort);
 
     return await PaginationHelper.executePaginatedQuery(queryBuilder, filters);
+  }
+
+  async findChildrenByParentId(parentId: string): Promise<Category[]> {
+    return this.repository.find({
+      where: { parentId, active: true },
+      order: { name: 'ASC' },
+    });
   }
 
   async findByIds(ids: string[]): Promise<Category[]> {
@@ -69,6 +81,12 @@ export class CategoryRepository {
     }
     
     return queryBuilder.getCount();
+  }
+
+  async countByParentId(parentId: string): Promise<number> {
+    return this.repository.count({
+      where: { parentId }
+    });
   }
 
   private applyFilters(queryBuilder: SelectQueryBuilder<Category>, filters: CategoryFilters) {

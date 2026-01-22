@@ -6,6 +6,7 @@ import {
   Length,
   Min,
   Max,
+  ValidateIf,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
@@ -13,6 +14,11 @@ export class CreateCategoryDto {
   @IsString()
   @Length(1, 100)
   name: string;
+
+  @IsOptional()
+  @ValidateIf((o) => o.parentId !== null && o.parentId !== undefined)
+  @IsUUID()
+  parentId?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -30,6 +36,11 @@ export class UpdateCategoryDto {
   @IsString()
   @Length(1, 100)
   name?: string;
+
+  @IsOptional()
+  @ValidateIf((o) => o.parentId !== null && o.parentId !== undefined)
+  @IsUUID()
+  parentId?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -71,6 +82,11 @@ export class CategoryQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   default?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  includeChildren?: boolean; // Si es true, incluye todas las categorías (padres e hijas)
 }
 
 export class CategoryDto {
@@ -78,6 +94,8 @@ export class CategoryDto {
   name: string;
   default: boolean;
   active: boolean;
+  parentId: string | null;
+  children?: CategoryDto[];
   createdAt: Date;
   updatedAt: Date;
 }

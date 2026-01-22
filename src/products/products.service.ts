@@ -710,6 +710,7 @@ export class ProductService {
           name: category.name,
           default: category.default,
           active: category.active,
+          parentId: category.parentId || null,
           createdAt: category.createdAt,
           updatedAt: category.updatedAt,
         })) || [],

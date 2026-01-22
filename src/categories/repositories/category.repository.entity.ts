@@ -5,4 +5,5 @@ export interface CategoryFilters {
   sort?: string;
   active?: boolean;
   default?: boolean;
+  includeChildren?: boolean; // Si es true, incluye todas las categorías (padres e hijas)
 }
