@@ -187,6 +187,15 @@ export class ProductQueryDto {
   quality?: string[];
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.split(',').map((c) => c.trim());
+    }
+    return value;
+  })
+  color?: string[];
+
+  @IsOptional()
   @Type(() => Number)
   @Min(0)
   minPrice?: number;

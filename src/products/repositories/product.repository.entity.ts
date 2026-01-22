@@ -5,6 +5,7 @@ export interface ProductFilters {
   sort?: string;
   category?: string[];
   quality?: string[];
+  color?: string[];
   minPrice?: number;
   maxPrice?: number;
   active?: boolean;

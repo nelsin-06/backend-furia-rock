@@ -77,6 +77,18 @@ export class ProductRepository {
       });
     }
 
+    if (filters.color && filters.color.length > 0) {
+      // Filter products that have at least one variant with a matching colorId
+      // Using json_array_elements since variables column is type 'json' not 'jsonb'
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1 FROM json_array_elements(product.variables) AS variant
+          WHERE (variant::jsonb)->>'colorId' IN (:...colors)
+        )`,
+        { colors: filters.color }
+      );
+    }
+
     if (filters.minPrice !== undefined) {
       queryBuilder.andWhere('product.price >= :minPrice', {
         minPrice: filters.minPrice,
