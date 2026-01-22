@@ -60,7 +60,7 @@ export class ProductRepository {
 
   private applyFilters(queryBuilder: SelectQueryBuilder<Product>, filters: ProductFilters) {
     if (filters.q) {
-      queryBuilder.andWhere('product.name LIKE :search', {
+      queryBuilder.andWhere('product.name ILIKE :search', {
         search: `%${filters.q}%`,
       });
     }
