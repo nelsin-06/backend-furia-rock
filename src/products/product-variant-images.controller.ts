@@ -31,7 +31,13 @@ export class ProductVariantImagesController {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
     fileFilter: (_req, file, cb) => {
       if (!file.mimetype.startsWith('image/')) {
-        return cb(new BadRequestException('Only images are allowed'), false);
+        return cb(
+          new BadRequestException(
+            'Solo se permiten imágenes. Formatos aceptados: JPEG, PNG, WebP. ' +
+            'Las imágenes deben ser verticales con proporción 7:10 (ejemplo: 700x1000px)'
+          ),
+          false
+        );
       }
       cb(null, true);
     },
@@ -57,7 +63,13 @@ export class ProductVariantImagesController {
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
       if (!file.mimetype.startsWith('image/')) {
-        return cb(new BadRequestException('Only images are allowed'), false);
+        return cb(
+          new BadRequestException(
+            'Solo se permiten imágenes. Formatos aceptados: JPEG, PNG, WebP. ' +
+            'Las imágenes deben ser verticales con proporción 7:10 (ejemplo: 700x1000px)'
+          ),
+          false
+        );
       }
       cb(null, true);
     },

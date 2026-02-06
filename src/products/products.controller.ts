@@ -14,6 +14,7 @@ import {
   CreateProductDto,
   UpdateProductDto,
   ProductQueryDto,
+  CloneProductDto,
 } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -67,5 +68,14 @@ export class ProductController {
       throw new Error('Product not found');
     }
     return { message: 'Product deleted successfully' };
+  }
+
+  @Post(':id/clone')
+  @UseGuards(JwtAuthGuard)
+  async clone(
+    @Param('id') id: string,
+    @Body() cloneDto: CloneProductDto,
+  ) {
+    return await this.productService.cloneProduct(id, cloneDto);
   }
 }

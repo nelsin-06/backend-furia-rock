@@ -62,4 +62,16 @@ export class ColorRepository {
     if (ids.length === 0) return [];
     return this.repository.findByIds(ids);
   }
+
+  async findByHexCode(hexCode: string): Promise<Color | null> {
+    return this.repository.findOne({ where: { hexCode: hexCode.toUpperCase() } });
+  }
+
+  create(colorData: Partial<Color>): Color {
+    return this.repository.create(colorData);
+  }
+
+  async save(color: Color): Promise<Color> {
+    return this.repository.save(color);
+  }
 }

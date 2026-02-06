@@ -1,19 +1,35 @@
 import { Inject, Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { UploadApiResponse, v2 as Cloudinary } from 'cloudinary';
 import { Multer } from 'multer';
+import { ImageValidatorService } from './image-validator.service';
 
 @Injectable()
 export class ImageUploadService {
   private readonly logger = new Logger(ImageUploadService.name);
 
-  constructor(@Inject('CLOUDINARY') private readonly cloudinary: typeof Cloudinary) {}
+  constructor(
+    @Inject('CLOUDINARY') private readonly cloudinary: typeof Cloudinary,
+    private readonly imageValidator: ImageValidatorService,
+  ) {}
 
   async upload(file: Express.Multer.File, productId: string): Promise<string> {
+    // Validar proporción y dimensiones antes de subir
+    const dimensions = await this.imageValidator.validateVerticalImage(file.buffer);
+
+    this.logger.log(
+      `Uploading validated image: ${dimensions.width}x${dimensions.height}px ` +
+      `(aspect ratio: ${dimensions.aspectRatio.toFixed(3)}) for product ${productId}`
+    );
+
     return new Promise((resolve, reject) => {
       const stream = this.cloudinary.uploader.upload_stream(
         {
           folder: `${process.env.CLOUDINARY_FOLDER}/${productId}`,
           resource_type: 'image',
+          // Transformaciones opcionales de Cloudinary
+          // Guardar en calidad óptima sin modificar dimensiones
+          quality: 'auto:good',
+          fetch_format: 'auto', // Cloudinary elegirá el mejor formato (WebP, AVIF, etc.)
         },
         (error, result: UploadApiResponse) => {
           if (error) return reject(new BadRequestException(error.message));

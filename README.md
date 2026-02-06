@@ -249,6 +249,14 @@ CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 CLOUDINARY_FOLDER=products
+
+# Image Upload Validation (Optional - defaults provided)
+IMAGE_ASPECT_RATIO=0.7              # Target aspect ratio (7:10)
+IMAGE_ASPECT_RATIO_TOLERANCE=0.05   # Tolerance (5%)
+IMAGE_MIN_WIDTH=700                 # Minimum width in pixels
+IMAGE_MIN_HEIGHT=1000               # Minimum height in pixels
+IMAGE_MAX_WIDTH=4000                # Maximum width in pixels
+IMAGE_MAX_HEIGHT=6000               # Maximum height in pixels
 ```
 
 ## Development Scripts
@@ -309,9 +317,31 @@ The `ImageUploadService` is now fully integrated with **Cloudinary** for profess
 ### Image Upload Features
 - **Multiple Images per Product Variable**: Each product variable can have multiple images
 - **5MB File Size Limit**: Per image upload limit
-- **Image Format Validation**: Only image files are accepted
+- **Image Format Validation**: Only image files are accepted (JPEG, PNG, WebP)
 - **Organized Storage**: Images stored in `products/{productId}/` folders
 - **Automatic URL Generation**: Secure URLs returned for frontend use
+- **Dimension Validation**: Images must be vertical with 7:10 aspect ratio (700×1000px minimum)
+- **Automatic Optimization**: Format conversion and quality optimization via Cloudinary
+
+### Image Specifications (Important!)
+
+⚠️ **All product images must meet these requirements:**
+
+- ✅ **Aspect Ratio**: 7:10 (0.7) ± 5% tolerance
+- ✅ **Orientation**: Vertical (height > width)
+- ✅ **Minimum Dimensions**: 700 × 1000px
+- ✅ **Maximum Dimensions**: 4000 × 6000px
+- ✅ **Formats**: JPEG, PNG, WebP
+- ✅ **Max File Size**: 5 MB per image
+
+**Example Valid Dimensions**:
+- 700 × 1000px ✓
+- 1400 × 2000px ✓
+- 2100 × 3000px ✓
+
+Images that don't meet these requirements will be **automatically rejected** with a descriptive error message.
+
+📚 See [IMAGE_GUIDELINES.md](../IMAGE_GUIDELINES.md) for complete specifications.
 
 ### Setting Up Cloudinary
 1. Create a [Cloudinary account](https://cloudinary.com)

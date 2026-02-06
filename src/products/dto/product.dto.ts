@@ -197,11 +197,21 @@ export class ProductQueryDto {
 
   @IsOptional()
   @Type(() => Number)
+  @Transform(({ value }) => {
+    // Convert negative values to undefined to ignore the filter
+    const numValue = Number(value);
+    return !isNaN(numValue) && numValue >= 0 ? numValue : undefined;
+  })
   @Min(0)
   minPrice?: number;
 
   @IsOptional()
   @Type(() => Number)
+  @Transform(({ value }) => {
+    // Convert negative values to undefined to ignore the filter
+    const numValue = Number(value);
+    return !isNaN(numValue) && numValue >= 0 ? numValue : undefined;
+  })
   @Min(0)
   maxPrice?: number;
 
@@ -227,4 +237,10 @@ export class ProductDto {
   variables: ProductVariable[] | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export class CloneProductDto {
+  @IsUUID()
+  @IsOptional()
+  qualityId?: string; // Nueva calidad para el clon (opcional)
 }

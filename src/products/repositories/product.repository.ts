@@ -89,13 +89,14 @@ export class ProductRepository {
       );
     }
 
-    if (filters.minPrice !== undefined) {
+    // Only apply price filters if values are non-negative
+    if (filters.minPrice !== undefined && filters.minPrice >= 0) {
       queryBuilder.andWhere('product.price >= :minPrice', {
         minPrice: filters.minPrice,
       });
     }
 
-    if (filters.maxPrice !== undefined) {
+    if (filters.maxPrice !== undefined && filters.maxPrice >= 0) {
       queryBuilder.andWhere('product.price <= :maxPrice', {
         maxPrice: filters.maxPrice,
       });

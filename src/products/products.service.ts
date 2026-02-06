@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef, Logger, NotFoundException } from '@nestjs/common';
 import { ProductRepository } from './repositories/product.repository';
 import {
   CreateProductDto,
   UpdateProductDto,
   ProductDto,
+  CloneProductDto,
 } from './dto/product.dto';
 import {
   Product,
@@ -341,6 +342,87 @@ export class ProductService {
     }
 
     return deleted;
+  }
+
+  /**
+   * Clone a product with all its data
+   * Optionally change quality during cloning
+   * @param id - Product ID to clone
+   * @param cloneDto - Optional quality change
+   * @returns Cloned product
+   */
+  async cloneProduct(id: string, cloneDto?: CloneProductDto): Promise<ProductDto> {
+    // 1. Buscar producto original con relaciones
+    const originalProduct = await this.productRepository.findOne({
+      where: { id },
+      relations: ['categories', 'quality']
+    });
+    
+    if (!originalProduct) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+
+    // 2. Validar que está activo
+    if (!originalProduct.active) {
+      throw new BadRequestException('Cannot clone inactive product');
+    }
+
+    // 3. Determinar calidad (nueva o mantener)
+    let targetQuality = originalProduct.quality;
+    let targetQualityId = originalProduct.qualityId;
+    
+    if (cloneDto?.qualityId && cloneDto.qualityId !== originalProduct.qualityId) {
+      const newQuality = await this.qualitiesService.findOne(cloneDto.qualityId);
+      if (!newQuality) {
+        throw new BadRequestException(
+          `Quality with ID ${cloneDto.qualityId} not found`
+        );
+      }
+      // Convert QualityDto to Quality entity structure
+      targetQuality = {
+        id: newQuality.id,
+        name: newQuality.name,
+        description: newQuality.description,
+        active: newQuality.active,
+        createdAt: newQuality.createdAt,
+        updatedAt: newQuality.updatedAt,
+        products: [], // Not needed for mapping
+      } as any;
+      targetQualityId = cloneDto.qualityId;
+    }
+
+    // 4. Clonar variables CON imágenes y nuevos variantIds
+    const clonedVariables = originalProduct.variables?.map(variable => ({
+      variantId: this.generateVariantId(), // Nuevo UUID
+      colorId: variable.colorId,
+      images: [...(variable.images || [])] // 🔑 CLONAR TODAS LAS IMÁGENES
+    }));
+
+    // 5. Crear producto clonado
+    const clonedProduct = this.productRepository.create({
+      name: originalProduct.name, // 🔑 MISMO NOMBRE (sin sufijo)
+      description: originalProduct.description,
+      price: originalProduct.price,
+      active: originalProduct.active, // 🔑 Mantener mismo estado activo
+      qualityId: targetQualityId,
+      variables: clonedVariables || []
+    });
+
+    // 6. Copiar categorías (por referencia)
+    clonedProduct.categories = originalProduct.categories;
+
+    // 7. Guardar en base de datos
+    const savedProduct = await this.productRepository.save(clonedProduct);
+    savedProduct.quality = targetQuality;
+
+    this.logger.log(
+      `✅ Product cloned: ${originalProduct.id} → ${savedProduct.id}` +
+      (cloneDto?.qualityId && cloneDto.qualityId !== originalProduct.qualityId
+        ? ` (quality changed to ${targetQualityId})`
+        : '')
+    );
+    
+    return await this.mapToDto(savedProduct);
   }
 
   /**
