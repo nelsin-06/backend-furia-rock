@@ -62,6 +62,15 @@ export class CartController {
     return await this.cartService.removeItem(sessionId, itemId);
   }
 
+  // Complete cart after successful payment (idempotent)
+  @Post('complete')
+  async completeCart(@Headers('x-session-id') sessionId: string) {
+    if (!sessionId) {
+      throw new BadRequestException('Session ID is required');
+    }
+    return await this.cartService.completeCart(sessionId);
+  }
+
   // Clear cart
   @Delete('clear')
   async clearCart(@Headers('x-session-id') sessionId: string) {

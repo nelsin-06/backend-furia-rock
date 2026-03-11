@@ -237,7 +237,37 @@ export class CartService {
     return now;
   }
 
-  // Cleanup expired carts (called by cron)
+  // Complete cart (mark as COMPLETED after successful payment)
+  // Idempotent: if already COMPLETED, returns the cart without error
+  async completeCart(sessionId: string): Promise<Cart> {
+    const cart = await this.cartRepository.findActiveBySessionId(sessionId);
+
+    if (!cart) {
+      // Cart may already be completed — look it up by sessionId regardless of status
+      const completedCart = await this.cartRepository.findCompletedBySessionId(sessionId);
+      if (completedCart) {
+        this.logger.log(`Cart for session ${sessionId} is already COMPLETED — returning as-is (idempotent)`);
+        return completedCart;
+      }
+      throw new NotFoundException('Cart not found');
+    }
+
+    if (cart.status === CartStatus.COMPLETED) {
+      this.logger.log(`Cart ${cart.id} is already COMPLETED — returning as-is (idempotent)`);
+      return cart;
+    }
+
+    if (cart.status === CartStatus.ABANDONED) {
+      throw new BadRequestException('Cannot complete an abandoned cart');
+    }
+
+    cart.status = CartStatus.COMPLETED;
+    const saved = await this.cartRepository.save(cart);
+    this.logger.log(`Cart ${cart.id} marked as COMPLETED for session ${sessionId}`);
+    return saved;
+  }
+
+  // Cleanup expired carts (called via maintenance endpoint)
   async cleanupExpiredCarts(): Promise<number> {
     return await this.cartRepository.deleteExpired();
   }

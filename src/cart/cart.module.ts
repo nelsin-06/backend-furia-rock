@@ -6,7 +6,6 @@ import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 import { CartRepository } from './repositories/cart.repository';
 import { CartItemRepository } from './repositories/cart-item.repository';
-import { CartCleanupService } from './cart-cleanup.service';
 import { ProductsModule } from '../products/products.module';
 
 @Module({
@@ -19,7 +18,6 @@ import { ProductsModule } from '../products/products.module';
     CartService,
     CartRepository,
     CartItemRepository,
-    CartCleanupService,
   ],
   exports: [CartService],
 })

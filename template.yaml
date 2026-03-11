@@ -1,0 +1,242 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Furia Rock Backend – single Lambda behind HTTP API (API Gateway v2).
+  Deployed via SAM with dev and prod stacks.
+
+# ---------------------------------------------------------------------------
+# Global defaults shared by every AWS::Serverless::Function in this template
+# ---------------------------------------------------------------------------
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+      - x86_64
+    MemorySize: 1024
+    Timeout: 28
+
+# ---------------------------------------------------------------------------
+# Parameters – values come from samconfig.toml per environment
+# ---------------------------------------------------------------------------
+Parameters:
+  # Core
+  NodeEnv:
+    Type: String
+    Default: development
+    AllowedValues:
+      - development
+      - production
+  EnableSwagger:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  # Database (Neon PostgreSQL)
+  DbHost:
+    Type: String
+  DbPort:
+    Type: String
+    Default: '5432'
+  DbUsername:
+    Type: String
+  DbPassword:
+    Type: String
+    NoEcho: true
+  DbDatabase:
+    Type: String
+
+  # JWT
+  JwtSecret:
+    Type: String
+    NoEcho: true
+  JwtExpires:
+    Type: String
+    Default: '5d'
+
+  # Admin seed
+  AdminUsername:
+    Type: String
+    Default: admin
+  AdminPassword:
+    Type: String
+    NoEcho: true
+
+  # Cloudinary
+  CloudinaryCloudName:
+    Type: String
+  CloudinaryApiKey:
+    Type: String
+  CloudinaryApiSecret:
+    Type: String
+    NoEcho: true
+  CloudinaryFolder:
+    Type: String
+    Default: products
+  CloudinaryUrl:
+    Type: String
+    Default: ''
+
+  # Frontend (CORS)
+  FrontendUrl:
+    Type: String
+    Default: ''
+
+  # Wompi
+  WompiPublicKey:
+    Type: String
+  WompiPrivateKey:
+    Type: String
+    NoEcho: true
+  WompiIntegritySecret:
+    Type: String
+    NoEcho: true
+  WompiEventsSecret:
+    Type: String
+    NoEcho: true
+  WompiBaseUrl:
+    Type: String
+    Default: 'https://sandbox.wompi.co'
+  RedirectUrl:
+    Type: String
+    Default: ''
+
+  # SMTP (email service)
+  SmtpHost:
+    Type: String
+    Default: ''
+  SmtpPort:
+    Type: String
+    Default: '587'
+  SmtpSecure:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  SmtpUser:
+    Type: String
+    Default: ''
+  SmtpPass:
+    Type: String
+    NoEcho: true
+    Default: ''
+  SmtpFrom:
+    Type: String
+    Default: 'noreply@furia-rock.com'
+
+  # Telegram (order notifications)
+  TelegramBotToken:
+    Type: String
+    Default: ''
+  TelegramChatId:
+    Type: String
+    Default: ''
+
+  # Image upload validation
+  ImageAspectRatio:
+    Type: String
+    Default: '0.7'
+  ImageAspectRatioTolerance:
+    Type: String
+    Default: '0.05'
+  ImageMinWidth:
+    Type: String
+    Default: '700'
+  ImageMinHeight:
+    Type: String
+    Default: '1000'
+  ImageMaxWidth:
+    Type: String
+    Default: '4000'
+  ImageMaxHeight:
+    Type: String
+    Default: '6000'
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ---- HTTP API (API Gateway v2) ----
+  FuriaHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      # CORS is handled at the application layer (NestJS) via app.enableCors().
+      # This avoids the HttpApi restriction of AllowCredentials=true with
+      # wildcard origins and allows dev/testing with dynamic origins.
+
+  # ---- Single Lambda function that serves the entire NestJS app ----
+  FuriaApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: dist/lambda.handler
+      CodeUri: .
+      Description: Furia Rock NestJS API served from a single Lambda
+      Environment:
+        Variables:
+          NODE_ENV: !Ref NodeEnv
+          ENABLE_SWAGGER: !Ref EnableSwagger
+          DB_HOST: !Ref DbHost
+          DB_PORT: !Ref DbPort
+          DB_USERNAME: !Ref DbUsername
+          DB_PASSWORD: !Ref DbPassword
+          DB_DATABASE: !Ref DbDatabase
+          JWT_SECRET: !Ref JwtSecret
+          JWT_EXPIRES: !Ref JwtExpires
+          ADMIN_USERNAME: !Ref AdminUsername
+          ADMIN_PASSWORD: !Ref AdminPassword
+          CLOUDINARY_CLOUD_NAME: !Ref CloudinaryCloudName
+          CLOUDINARY_API_KEY: !Ref CloudinaryApiKey
+          CLOUDINARY_API_SECRET: !Ref CloudinaryApiSecret
+          CLOUDINARY_FOLDER: !Ref CloudinaryFolder
+          CLOUDINARY_URL: !Ref CloudinaryUrl
+          FRONTEND_URL: !Ref FrontendUrl
+          WOMPI_PUBLIC_KEY: !Ref WompiPublicKey
+          WOMPI_PRIVATE_KEY: !Ref WompiPrivateKey
+          WOMPI_INTEGRITY_SECRET: !Ref WompiIntegritySecret
+          WOMPI_EVENTS_SECRET: !Ref WompiEventsSecret
+          WOMPI_BASE_URL: !Ref WompiBaseUrl
+          REDIRECT_URL: !Ref RedirectUrl
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_SECURE: !Ref SmtpSecure
+          SMTP_USER: !Ref SmtpUser
+          SMTP_PASS: !Ref SmtpPass
+          SMTP_FROM: !Ref SmtpFrom
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          TELEGRAM_CHAT_ID: !Ref TelegramChatId
+          IMAGE_ASPECT_RATIO: !Ref ImageAspectRatio
+          IMAGE_ASPECT_RATIO_TOLERANCE: !Ref ImageAspectRatioTolerance
+          IMAGE_MIN_WIDTH: !Ref ImageMinWidth
+          IMAGE_MIN_HEIGHT: !Ref ImageMinHeight
+          IMAGE_MAX_WIDTH: !Ref ImageMaxWidth
+          IMAGE_MAX_HEIGHT: !Ref ImageMaxHeight
+      Events:
+        RootRoute:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FuriaHttpApi
+            Path: /
+            Method: ANY
+        ProxyRoute:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FuriaHttpApi
+            Path: /{proxy+}
+            Method: ANY
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  FuriaApiUrl:
+    Description: URL of the HTTP API endpoint
+    Value: !Sub 'https://${FuriaHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  FuriaApiFunctionArn:
+    Description: ARN of the API Lambda function
+    Value: !GetAtt FuriaApiFunction.Arn

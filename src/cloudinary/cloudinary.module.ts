@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
+import { CloudinarySignatureService } from './cloudinary-signature.service';
+import { CloudinarySignatureController } from './cloudinary-signature.controller';
 
 @Module({
+  controllers: [CloudinarySignatureController],
   providers: [
     {
       provide: 'CLOUDINARY',
@@ -14,7 +17,8 @@ import { v2 as cloudinary } from 'cloudinary';
         return cloudinary;
       },
     },
+    CloudinarySignatureService,
   ],
-  exports: ['CLOUDINARY'],
+  exports: ['CLOUDINARY', CloudinarySignatureService],
 })
 export class CloudinaryModule {}

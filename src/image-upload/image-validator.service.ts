@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 
 export interface ImageDimensions {
   width: number;

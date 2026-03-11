@@ -1,5 +1,6 @@
-import { Module, OnModuleInit, Logger } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
 import { AdminModule } from './admin/admin.module';
@@ -10,6 +11,7 @@ import { QualitiesModule } from './qualities/qualities.module';
 import { CartModule } from './cart/cart.module';
 import { PaymentModule } from './payments/payment.module';
 import { OrdersModule } from './orders/orders.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 import { Admin } from './admin/entities/admin.entity';
 import { Product } from './products/entities/product.entity';
 import { Color } from './colors/entities/color.entity';
@@ -18,32 +20,65 @@ import { Quality } from './qualities/entities/quality.entity';
 import { Cart } from './cart/entities/cart.entity';
 import { CartItem } from './cart/entities/cart-item.entity';
 import { Order } from './orders/entities/order.entity';
-import { AdminRepository } from './admin/repositories/admin.repository';
-import { CategoriesService } from './categories/categories.service';
-import { QualitiesService } from './qualities/qualities.service';
-import * as bcrypt from 'bcrypt';
-import * as dotenv from 'dotenv';
-import { ConfigModule } from '@nestjs/config';
-dotenv.config();
+
 const bootstrapLogger = new Logger('AppModuleBootstrap');
-bootstrapLogger.log('Loading environment variables...', process.env.NODE_ENV);
+
 @Module({
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_DATABASE,
-      entities: [Admin, Product, Color, Category, Quality, Cart, CartItem, Order],
-      synchronize: process.env.NODE_ENV === 'development',
-      logging: process.env.NODE_ENV === 'development',
-      // Enable SSL for non-local hosts (e.g. managed Postgres like Neon/Heroku)
-      ssl:
-        process.env.DB_HOST && process.env.DB_HOST !== 'localhost'
-          ? { rejectUnauthorized: false }
-          : false,
+    // ConfigModule MUST be first — it loads env vars that TypeOrmModule needs.
+    // In Lambda, env vars come from SAM template (no .env files needed).
+    // Locally, it loads from .env.development or .env.production.
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
+    }),
+    // TypeOrmModule uses forRootAsync so it waits for ConfigModule to load
+    // env vars before reading DB_* values via ConfigService.
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const nodeEnv = config.get<string>('NODE_ENV', 'development');
+        const isDev = nodeEnv === 'development';
+        const dbHost = config.get<string>('DB_HOST', 'localhost');
+
+        bootstrapLogger.log(
+          `TypeORM: NODE_ENV=${nodeEnv}, host=${dbHost}, db=${config.get('DB_DATABASE')}`,
+        );
+
+        return {
+          type: 'postgres',
+          host: dbHost,
+          port: config.get<number>('DB_PORT', 5432),
+          username: config.get<string>('DB_USERNAME'),
+          password: config.get<string>('DB_PASSWORD'),
+          database: config.get<string>('DB_DATABASE'),
+          entities: [
+            Admin,
+            Product,
+            Color,
+            Category,
+            Quality,
+            Cart,
+            CartItem,
+            Order,
+          ],
+          // synchronize ONLY in development — production must use migrations
+          synchronize: isDev,
+          logging: isDev,
+          // Enable SSL for non-local hosts (e.g. managed Postgres like Neon)
+          ssl:
+            dbHost && dbHost !== 'localhost'
+              ? { rejectUnauthorized: false }
+              : false,
+          // Connection pool tuning for Lambda:
+          // - Lambda handles 1 concurrent request per container, so a small pool
+          //   suffices. A pool of 2 avoids contention while limiting Neon connections.
+          // - Local dev uses a larger pool for concurrent requests.
+          extra: {
+            max: isDev ? 10 : 2,
+          },
+        };
+      },
     }),
     AuthModule,
     ProductsModule,
@@ -55,60 +90,7 @@ bootstrapLogger.log('Loading environment variables...', process.env.NODE_ENV);
     CartModule,
     PaymentModule,
     OrdersModule,
-    ConfigModule.forRoot({
-      isGlobal: true, // Hace que las variables sean accesibles globalmente
-      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`, 
-    }),
+    MaintenanceModule,
   ],
 })
-export class AppModule implements OnModuleInit {
-  private readonly logger = new Logger(AppModule.name);
-
-  constructor(
-    private readonly adminRepository: AdminRepository,
-    private readonly categoriesService: CategoriesService,
-    private readonly qualitiesService: QualitiesService,
-  ) {}
-
-  async onModuleInit() {
-    await this.seedSuperAdmin();
-    await this.seedDefaultCategories();
-    await this.seedDefaultQualities();
-  }
-
-  private async seedSuperAdmin() {
-    const adminUsername = process.env.ADMIN_USERNAME;
-    const adminPassword = process.env.ADMIN_PASSWORD;
-
-    const existingAdmin = await this.adminRepository.findByUsername(
-      adminUsername,
-    );
-
-    if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash(adminPassword, 10);
-      const admin = this.adminRepository.create({
-        username: adminUsername,
-        passwordHash,
-      });
-
-      await this.adminRepository.save(admin);
-      this.logger.log(`Super admin created with username: ${adminUsername}`);
-    }
-  }
-
-  private async seedDefaultCategories() {
-    try {
-      await this.categoriesService.ensureDefaultCategoryExists();
-    } catch (error) {
-      this.logger.error('Error seeding default categories', error?.stack);
-    }
-  }
-
-  private async seedDefaultQualities() {
-    try {
-      await this.qualitiesService.seedDefaultQualities();
-    } catch (error) {
-      this.logger.error('Error seeding default qualities', error?.stack);
-    }
-  }
-}
+export class AppModule {}

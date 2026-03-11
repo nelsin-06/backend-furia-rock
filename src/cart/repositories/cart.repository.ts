@@ -21,6 +21,18 @@ export class CartRepository {
     });
   }
 
+  // Find completed cart by sessionId (most recent)
+  async findCompletedBySessionId(sessionId: string): Promise<Cart | null> {
+    return this.repository.findOne({
+      where: {
+        sessionId,
+        status: CartStatus.COMPLETED,
+      },
+      relations: ['items'],
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
   // Find cart by ID
   async findById(id: string): Promise<Cart | null> {
     return this.repository.findOne({

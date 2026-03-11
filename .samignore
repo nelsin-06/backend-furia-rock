@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# .samignore – files/dirs excluded from the SAM artifact
+#
+# With BuildMethod: makefile the Makefile assembles the artifact explicitly,
+# so .samignore acts as a safety net for `sam package` / `sam deploy`.
+# ---------------------------------------------------------------------------
+
+# Source code (compiled output lives in dist/)
+src/
+test/
+
+# Environment files (secrets)
+.env
+.env.*
+
+# Dev tooling configs
+.eslintrc.js
+.prettierrc
+tsconfig.json
+tsconfig.build.json
+nest-cli.json
+docker-compose.yml
+jest.config.*
+
+# Documentation
+*.md
+docs/
+
+# Agent files (project-specific)
+*-architect.md
+*-engineer.md
+*-designer.md
+*-builder.md
+*-manager.md
+*-auditor.md
+*-writer.md
+
+# SAM config (not needed inside Lambda)
+samconfig.toml
+template.yaml
+Makefile
+
+# Build intermediates
+coverage/
+.nyc_output
+*.tsbuildinfo
+
+# IDE / OS
+.vscode/
+.idea/
+.git/
+.gitignore
+.DS_Store
+Thumbs.db
+
+# Scripts / misc
+setup.sh
+test.js

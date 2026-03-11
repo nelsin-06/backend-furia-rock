@@ -259,6 +259,23 @@ export class PaymentService {
 
     // Enviar notificaciones cuando el pago es APPROVED
     if (status === OrderStatus.APPROVED) {
+      // 0. Cerrar el carrito asociado (via session_id)
+      // Esto garantiza que aunque el frontend no llame a POST /cart/complete,
+      // el carrito no quede ACTIVE después de un pago exitoso.
+      if (savedOrder.session_id) {
+        try {
+          await this.cartService.completeCart(savedOrder.session_id);
+          this.logger.log(
+            `✅ Cart closed for session ${savedOrder.session_id} after APPROVED payment (reference: ${reference})`,
+          );
+        } catch (cartError) {
+          // No fallar el webhook si el carrito ya fue cerrado por el frontend o no existe
+          this.logger.warn(
+            `⚠️  Could not close cart for session ${savedOrder.session_id} (reference: ${reference}): ${cartError.message}`,
+          );
+        }
+      }
+
       // 1. Notificar al equipo interno por Telegram
       try {
         await this.telegramService.sendOrderNotification(savedOrder);

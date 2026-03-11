@@ -1,0 +1,103 @@
+# SAM CLI configuration for Furia Rock Backend
+# Usage:
+#   sam build
+#   sam deploy --config-env dev
+#   sam deploy --config-env prod
+
+version = 0.1
+
+# ─── Dev environment ────────────────────────────────────────────────────────
+[dev.deploy.parameters]
+stack_name = "furia-dev"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+# Parameter overrides – fill in real values before deploying
+parameter_overrides = [
+  "NodeEnv=development",
+  "EnableSwagger=true",
+  "DbHost=FILL_ME",
+  "DbPort=5432",
+  "DbUsername=FILL_ME",
+  "DbPassword=FILL_ME",
+  "DbDatabase=FILL_ME",
+  "JwtSecret=FILL_ME",
+  "JwtExpires=5d",
+  "AdminUsername=admin",
+  "AdminPassword=FILL_ME",
+  "CloudinaryCloudName=FILL_ME",
+  "CloudinaryApiKey=FILL_ME",
+  "CloudinaryApiSecret=FILL_ME",
+  "CloudinaryFolder=products",
+  "CloudinaryUrl=",
+  "FrontendUrl=FILL_ME",
+  "WompiPublicKey=FILL_ME",
+  "WompiPrivateKey=FILL_ME",
+  "WompiIntegritySecret=FILL_ME",
+  "WompiEventsSecret=FILL_ME",
+  "WompiBaseUrl=https://sandbox.wompi.co",
+  "RedirectUrl=FILL_ME",
+  "SmtpHost=FILL_ME",
+  "SmtpPort=587",
+  "SmtpSecure=false",
+  "SmtpUser=FILL_ME",
+  "SmtpPass=FILL_ME",
+  "SmtpFrom=noreply@furia-rock.com",
+  "TelegramBotToken=FILL_ME",
+  "TelegramChatId=FILL_ME",
+  "ImageAspectRatio=0.7",
+  "ImageAspectRatioTolerance=0.05",
+  "ImageMinWidth=700",
+  "ImageMinHeight=1000",
+  "ImageMaxWidth=4000",
+  "ImageMaxHeight=6000",
+]
+
+# ─── Prod environment ───────────────────────────────────────────────────────
+[prod.deploy.parameters]
+stack_name = "furia-prod"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+# Parameter overrides – fill in real values before deploying
+parameter_overrides = [
+  "NodeEnv=production",
+  "EnableSwagger=false",
+  "DbHost=FILL_ME",
+  "DbPort=5432",
+  "DbUsername=FILL_ME",
+  "DbPassword=FILL_ME",
+  "DbDatabase=FILL_ME",
+  "JwtSecret=FILL_ME",
+  "JwtExpires=5d",
+  "AdminUsername=admin",
+  "AdminPassword=FILL_ME",
+  "CloudinaryCloudName=FILL_ME",
+  "CloudinaryApiKey=FILL_ME",
+  "CloudinaryApiSecret=FILL_ME",
+  "CloudinaryFolder=products",
+  "CloudinaryUrl=",
+  "FrontendUrl=FILL_ME",
+  "WompiPublicKey=FILL_ME",
+  "WompiPrivateKey=FILL_ME",
+  "WompiIntegritySecret=FILL_ME",
+  "WompiEventsSecret=FILL_ME",
+  "WompiBaseUrl=https://production.wompi.co",
+  "RedirectUrl=FILL_ME",
+  "SmtpHost=FILL_ME",
+  "SmtpPort=587",
+  "SmtpSecure=true",
+  "SmtpUser=FILL_ME",
+  "SmtpPass=FILL_ME",
+  "SmtpFrom=noreply@furia-rock.com",
+  "TelegramBotToken=FILL_ME",
+  "TelegramChatId=FILL_ME",
+  "ImageAspectRatio=0.7",
+  "ImageAspectRatioTolerance=0.05",
+  "ImageMinWidth=700",
+  "ImageMinHeight=1000",
+  "ImageMaxWidth=4000",
+  "ImageMaxHeight=6000",
+]
