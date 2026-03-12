@@ -3,8 +3,8 @@ import { Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from './app.module';
 import { AdminRepository } from './admin/repositories/admin.repository';
-import { CategoriesService } from './categories/categories.service';
 import { QualitiesService } from './qualities/qualities.service';
+import { ColorsService } from './colors/colors.service';
 
 /**
  * Standalone seed script.
@@ -12,8 +12,8 @@ import { QualitiesService } from './qualities/qualities.service';
  * Creates a NestJS application context (no HTTP server) and runs all
  * seed routines:
  *   1. Super admin account (from ADMIN_USERNAME / ADMIN_PASSWORD env vars)
- *   2. Default "General" category
- *   3. Default quality tiers (premium, intermedia, basica)
+ *   2. Default quality tiers (dtf, dtg)
+ *   3. Default colors
  *
  * All seeds are idempotent — safe to run multiple times.
  *
@@ -58,22 +58,22 @@ async function runSeeds(): Promise<void> {
       }
     }
 
-    // --- 2. Seed default categories ---
-    const categoriesService = app.get(CategoriesService);
-    try {
-      await categoriesService.ensureDefaultCategoryExists();
-      logger.log('Default categories seed completed.');
-    } catch (error) {
-      logger.error('Error seeding default categories', error?.stack);
-    }
-
-    // --- 3. Seed default qualities ---
+    // --- 2. Seed default qualities ---
     const qualitiesService = app.get(QualitiesService);
     try {
       await qualitiesService.seedDefaultQualities();
       logger.log('Default qualities seed completed.');
     } catch (error) {
       logger.error('Error seeding default qualities', error?.stack);
+    }
+
+    // --- 3. Seed default colors ---
+    const colorsService = app.get(ColorsService);
+    try {
+      await colorsService.seedDefaultColors();
+      logger.log('Default colors seed completed.');
+    } catch (error) {
+      logger.error('Error seeding default colors', error?.stack);
     }
 
     logger.log('Seed process finished successfully.');

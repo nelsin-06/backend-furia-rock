@@ -184,17 +184,6 @@ export class CategoriesService {
       );
     }
 
-    // Check if this is the default category
-    if (category.default) {
-      const totalCategories = await this.categoryRepository.count({ active: true });
-      if (totalCategories <= 1) {
-        throw new BadRequestException(
-          'Cannot delete the default category when it is the only active category. ' +
-          'Please create another category and set it as default first.'
-        );
-      }
-    }
-
     const result = await this.categoryRepository.delete(id);
     return result.affected > 0;
   }
@@ -202,24 +191,6 @@ export class CategoriesService {
   async getDefaultCategory(): Promise<CategoryDto | null> {
     const defaultCategory = await this.categoryRepository.findDefaultCategory();
     return defaultCategory ? this.mapToDto(defaultCategory) : null;
-  }
-
-  async ensureDefaultCategoryExists(): Promise<void> {
-    const defaultCategory = await this.categoryRepository.findDefaultCategory();
-    
-    if (!defaultCategory) {
-      // Create a default category if none exists
-      const defaultCategoryData = {
-        name: 'General',
-        default: true,
-        active: true,
-      };
-      
-      const category = this.categoryRepository.create(defaultCategoryData);
-      await this.categoryRepository.save(category);
-      
-      this.logger.log('✅ Created default category: General');
-    }
   }
 
   private async ensureOnlyOneDefault(isDefault: boolean, excludeId?: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { ColorRepository } from './repositories/color.repository';
 import { ColorDto } from './dto/color.dto';
 import { CreateColorDto } from './dto/create-color.dto';
@@ -8,6 +8,8 @@ import { ColorFilters } from './repositories/color.repository.entity';
 
 @Injectable()
 export class ColorsService {
+  private readonly logger = new Logger(ColorsService.name);
+
   constructor(
     private readonly colorRepository: ColorRepository,
   ) {}
@@ -65,6 +67,29 @@ export class ColorsService {
     // Actualizar
     Object.assign(color, updateColorDto);
     return await this.colorRepository.save(color);
+  }
+
+  async seedDefaultColors(): Promise<void> {
+    const defaultColors = [
+      { name: 'Negro', hexCode: '#000000' },
+      { name: 'Blanco', hexCode: '#FFFFFF' },
+      { name: 'Rojo', hexCode: '#FF0000' },
+      { name: 'Azul', hexCode: '#0000FF' },
+      { name: 'Verde', hexCode: '#008000' },
+      { name: 'Gris', hexCode: '#808080' },
+    ];
+
+    for (const colorData of defaultColors) {
+      const existingColor = await this.colorRepository.findByHexCode(colorData.hexCode);
+      if (!existingColor) {
+        const color = this.colorRepository.create({
+          ...colorData,
+          active: true,
+        });
+        await this.colorRepository.save(color);
+        this.logger.log(`✅ Created default color: ${colorData.name} (${colorData.hexCode})`);
+      }
+    }
   }
 
   private mapToDto(color: Color): ColorDto {

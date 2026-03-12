@@ -79,7 +79,7 @@ export class CreateProductDto {
   @Type(() => Number)
   price: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Transform(({ value }) => {
     // Handle comma-separated category IDs
     if (typeof value === 'string') {

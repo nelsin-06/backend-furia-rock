@@ -63,7 +63,7 @@ const bootstrapLogger = new Logger('AppModuleBootstrap');
             Order,
           ],
           // synchronize ONLY in development — production must use migrations
-          synchronize: isDev,
+          synchronize: true,
           logging: isDev,
           // Enable SSL for non-local hosts (e.g. managed Postgres like Neon)
           ssl:

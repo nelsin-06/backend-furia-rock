@@ -702,14 +702,7 @@ export class ProductService {
     categoryIds: string[],
   ): Promise<any[]> {
     if (categoryIds.length === 0) {
-      // If no categories provided, use default category
-      const defaultCategory = await this.categoriesService.getDefaultCategory();
-      if (!defaultCategory) {
-        throw new BadRequestException(
-          'No categories provided and no default category found',
-        );
-      }
-      return [{ id: defaultCategory.id }]; // Return minimal category object for relationship
+      return []; // Categories are optional — return empty array
     }
 
     // Validate all category IDs exist

@@ -38,7 +38,7 @@ export class QualitiesService {
     }
 
     const quality = this.qualityRepository.create({
-      name: createQualityDto.name.toLowerCase(),
+      name: createQualityDto.name.trim(),
       description: createQualityDto.description,
       active: createQualityDto.active ?? true,
     });
@@ -62,7 +62,7 @@ export class QualitiesService {
     }
 
     const updateData = {
-      name: updateQualityDto.name?.toLowerCase(),
+      name: updateQualityDto.name?.trim(),
       description: updateQualityDto.description,
       active: updateQualityDto.active,
     };
@@ -96,9 +96,8 @@ export class QualitiesService {
 
   async seedDefaultQualities(): Promise<void> {
     const defaultQualities = [
-      { name: 'premium', description: 'Calidad premium con materiales de alta gama' },
-      { name: 'intermedia', description: 'Calidad intermedia con buen balance precio-calidad' },
-      { name: 'basica', description: 'Calidad básica accesible para todos' },
+      { name: 'DTF', description: 'Impresion DTF (Direct to Film)' },
+      { name: 'DTG', description: 'Impresion DTG (Direct to Garment)' },
     ];
 
     for (const qualityData of defaultQualities) {
