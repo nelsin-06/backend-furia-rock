@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
+
 export class CreateCategoryDto {
   @IsString()
   @Length(1, 100)
@@ -19,11 +20,6 @@ export class CreateCategoryDto {
   @ValidateIf((o) => o.parentId !== null && o.parentId !== undefined)
   @IsUUID()
   parentId?: string | null;
-
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => value === 'true' || value === true)
-  default?: boolean = false;
 
   @IsOptional()
   @IsBoolean()
@@ -41,11 +37,6 @@ export class UpdateCategoryDto {
   @ValidateIf((o) => o.parentId !== null && o.parentId !== undefined)
   @IsUUID()
   parentId?: string | null;
-
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => value === 'true' || value === true)
-  default?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -81,18 +72,12 @@ export class CategoryQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  default?: boolean;
-
-  @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
-  @IsBoolean()
   includeChildren?: boolean; // Si es true, incluye todas las categorías (padres e hijas)
 }
 
 export class CategoryDto {
   id: string;
   name: string;
-  default: boolean;
   active: boolean;
   parentId: string | null;
   children?: CategoryDto[];

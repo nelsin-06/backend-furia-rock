@@ -26,11 +26,6 @@ export class CategoriesController {
     return await this.categoriesService.findAll(query);
   }
 
-  @Get('default')
-  async getDefault() {
-    return await this.categoriesService.getDefaultCategory();
-  }
-
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const category = await this.categoriesService.findOne(id);

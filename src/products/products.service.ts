@@ -783,7 +783,6 @@ export class ProductService {
         product.categories?.map((category) => ({
           id: category.id,
           name: category.name,
-          default: category.default,
           active: category.active,
           parentId: category.parentId || null,
           createdAt: category.createdAt,

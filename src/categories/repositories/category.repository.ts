@@ -38,17 +38,6 @@ export class CategoryRepository {
     return this.repository.findByIds(ids);
   }
 
-  async findDefaultCategory(): Promise<Category | null> {
-    return this.repository.findOne({ where: { default: true, active: true } });
-  }
-
-  async setAsDefault(categoryId: string): Promise<void> {
-    // First, remove default from all categories
-    await this.repository.update({ default: true }, { default: false });
-    // Then set the specified category as default
-    await this.repository.update({ id: categoryId }, { default: true });
-  }
-
   create(entityLike: Partial<Category>): Category {
     return this.repository.create(entityLike);
   }
@@ -99,16 +88,12 @@ export class CategoryRepository {
     if (filters.active !== undefined) {
       queryBuilder.andWhere('category.active = :active', { active: filters.active });
     }
-
-    if (filters.default !== undefined) {
-      queryBuilder.andWhere('category.default = :default', { default: filters.default });
-    }
   }
 
   private applySorting(queryBuilder: SelectQueryBuilder<Category>, sort?: string) {
     if (sort) {
       const [field, direction] = sort.split(':');
-      const validFields = ['name', 'default', 'active', 'createdAt', 'updatedAt'];
+      const validFields = ['name', 'active', 'createdAt', 'updatedAt'];
       const validDirections = ['ASC', 'DESC'];
 
       if (validFields.includes(field) && validDirections.includes(direction?.toUpperCase())) {
@@ -117,8 +102,7 @@ export class CategoryRepository {
       }
     }
 
-    // Default sorting: default categories first, then by name
-    queryBuilder.orderBy('category.default', 'DESC');
-    queryBuilder.addOrderBy('category.name', 'ASC');
+    // Default sorting: by name
+    queryBuilder.orderBy('category.name', 'ASC');
   }
 }

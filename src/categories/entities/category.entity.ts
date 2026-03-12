@@ -21,10 +21,6 @@ export class Category {
   @Index('idx_category_name')
   name: string;
 
-  @Column({ type: 'boolean', default: false })
-  @Index('idx_category_default')
-  default: boolean;
-
   @Column({ type: 'boolean', default: true })
   active: boolean;
 

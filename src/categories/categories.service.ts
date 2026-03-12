@@ -75,11 +75,6 @@ export class CategoriesService {
       throw new BadRequestException(`Category with name "${createCategoryDto.name}" already exists at this level`);
     }
 
-    // If setting as default, ensure only one default exists
-    if (createCategoryDto.default) {
-      await this.ensureOnlyOneDefault(createCategoryDto.default);
-    }
-
     const category = this.categoryRepository.create(createCategoryDto);
     const savedCategory = await this.categoryRepository.save(category);
     
@@ -139,11 +134,6 @@ export class CategoriesService {
       }
     }
 
-    // If setting as default, ensure only one default exists
-    if (updateCategoryDto.default === true) {
-      await this.ensureOnlyOneDefault(true, id);
-    }
-
     await this.categoryRepository.update(id, updateCategoryDto);
     const updatedCategory = await this.categoryRepository.findOne({ 
       where: { id },
@@ -188,33 +178,10 @@ export class CategoriesService {
     return result.affected > 0;
   }
 
-  async getDefaultCategory(): Promise<CategoryDto | null> {
-    const defaultCategory = await this.categoryRepository.findDefaultCategory();
-    return defaultCategory ? this.mapToDto(defaultCategory) : null;
-  }
-
-  private async ensureOnlyOneDefault(isDefault: boolean, excludeId?: string): Promise<void> {
-    if (isDefault) {
-      // Remove default flag from all other categories
-      const queryBuilder = this.categoryRepository['repository']
-        .createQueryBuilder()
-        .update(Category)
-        .set({ default: false })
-        .where('default = :default', { default: true });
-      
-      if (excludeId) {
-        queryBuilder.andWhere('id != :excludeId', { excludeId });
-      }
-      
-      await queryBuilder.execute();
-    }
-  }
-
   private mapToDto(category: Category, children?: Category[]): CategoryDto {
     const dto: CategoryDto = {
       id: category.id,
       name: category.name,
-      default: category.default,
       active: category.active,
       parentId: category.parentId || null,
       createdAt: category.createdAt,
