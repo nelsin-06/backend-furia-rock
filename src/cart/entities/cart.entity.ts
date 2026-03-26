@@ -15,12 +15,16 @@ export enum CartStatus {
   ABANDONED = 'abandoned',
 }
 
+@Index('uq_cart_active_session', ['sessionId'], {
+  unique: true,
+  where: `"status" = 'active'`,
+})
 @Entity('carts')
 export class Cart {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   @Index('idx_cart_session')
   sessionId: string;
 

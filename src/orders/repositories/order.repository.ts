@@ -54,6 +54,13 @@ export class OrderRepository extends Repository<Order> {
     return await this.findOne({ where: { reference } });
   }
 
+  async findByReferenceAndSession(
+    reference: string,
+    session_id: string,
+  ): Promise<Order | null> {
+    return await this.findOne({ where: { reference, session_id } });
+  }
+
   async findByWompiTransactionId(
     wompi_transaction_id: string,
   ): Promise<Order | null> {

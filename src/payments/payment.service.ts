@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
-import { CreateCheckoutDto, CheckoutResponseDto } from './dto/payment.dto';
+import {
+  CreateCheckoutDto,
+  CheckoutResponseDto,
+  OrderStatusResponseDto,
+} from './dto/payment.dto';
 import { OrderRepository } from '../orders/repositories/order.repository';
 import { CartService } from '../cart/cart.service';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
@@ -24,6 +28,7 @@ export class PaymentService {
   private readonly wompiIntegritySecret: string;
   private readonly wompiEventsSecret: string;
   private readonly wompiBaseUrl: string;
+  private readonly wompiCheckoutUrl: string;
   private readonly redirectUrl: string;
 
   constructor(
@@ -35,32 +40,15 @@ export class PaymentService {
     private readonly telegramService: TelegramService,
     private readonly colorsService: ColorsService,
   ) {
-    this.wompiPublicKey = this.configService.get<string>('WOMPI_PUBLIC_KEY');
-    this.wompiPrivateKey = this.configService.get<string>('WOMPI_PRIVATE_KEY');
-    this.wompiIntegritySecret = this.configService.get<string>(
-      'WOMPI_INTEGRITY_SECRET',
-    );
-    this.wompiEventsSecret = this.configService.get<string>(
-      'WOMPI_EVENTS_SECRET',
-    );
-    this.wompiBaseUrl = this.configService.get<string>('WOMPI_BASE_URL');
-    this.redirectUrl = this.configService.get<string>('REDIRECT_URL');
-
-    if (
-      !this.wompiPublicKey ||
-      !this.wompiIntegritySecret ||
-      !this.wompiBaseUrl
-    ) {
-      throw new Error(
-        'Wompi configuration is missing. Check environment variables.',
-      );
-    }
-
-    if (!this.wompiEventsSecret) {
-      this.logger.warn(
-        '⚠️  WOMPI_EVENTS_SECRET not configured. Webhook signature validation will be skipped.',
-      );
-    }
+    this.wompiPublicKey = this.getRequiredConfig('WOMPI_PUBLIC_KEY');
+    this.wompiPrivateKey = this.getRequiredConfig('WOMPI_PRIVATE_KEY');
+    this.wompiIntegritySecret = this.getRequiredConfig('WOMPI_INTEGRITY_SECRET');
+    this.wompiEventsSecret = this.getRequiredConfig('WOMPI_EVENTS_SECRET');
+    this.wompiBaseUrl = this.getRequiredConfig('WOMPI_BASE_URL');
+    this.wompiCheckoutUrl =
+      this.configService.get<string>('WOMPI_CHECKOUT_URL') ||
+      'https://checkout.wompi.co/p/';
+    this.redirectUrl = this.getRequiredConfig('REDIRECT_URL');
   }
 
   async createCheckout(
@@ -156,14 +144,20 @@ export class PaymentService {
       // 4. Generar referencia única
       const reference = uuidv4();
 
-      // 5. Calcular la firma de integridad
+      // 5. Calcular tiempo de expiración (15 minutos)
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+      const expirationTime = expiresAt.toISOString();
+
+      // 6. Calcular la firma de integridad (incluyendo expiration-time)
       const signature = await this.generateIntegritySignature(
         reference,
         amount_in_cents,
         'COP',
+        expirationTime,
       );
 
-      // 6. Preparar datos con valores estáticos
+      // 7. Preparar datos con valores estáticos
       const customer_data = {
         ...createCheckoutDto.customer_data,
         phone_number_prefix: '57', // Estático para Colombia
@@ -174,11 +168,38 @@ export class PaymentService {
         country: 'CO', // Estático para Colombia
       };
 
-      // 7. Calcular tiempo de expiración (15 minutos) - opcional
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+      // 8. Construir URLs de retorno y checkout de Wompi
+      const redirectUrlWithReference = this.appendReferenceToRedirectUrl(
+        this.redirectUrl,
+        reference,
+      );
 
-      // 8. Crear orden en base de datos con estado PENDING
+      const checkout_url = this.buildCheckoutUrl({
+        'public-key': this.wompiPublicKey,
+        currency: 'COP',
+        'amount-in-cents': amount_in_cents,
+        reference,
+        'signature:integrity': signature,
+        'redirect-url': redirectUrlWithReference,
+        'expiration-time': expirationTime,
+        'collect-shipping': createCheckoutDto.collect_shipping,
+        'customer-data:email': customer_data.email,
+        'customer-data:full-name': customer_data.full_name,
+        'customer-data:phone-number': customer_data.phone_number,
+        'customer-data:phone-number-prefix':
+          customer_data.phone_number_prefix,
+        'customer-data:legal-id': customer_data.legal_id,
+        'customer-data:legal-id-type': customer_data.legal_id_type,
+        'shipping-address:address-line-1': shipping_address.address_line_1,
+        'shipping-address:address-line-2': shipping_address.address_line_2,
+        'shipping-address:country': shipping_address.country,
+        'shipping-address:region': shipping_address.region,
+        'shipping-address:city': shipping_address.city,
+        'shipping-address:phone-number': shipping_address.phone_number,
+        'shipping-address:name': shipping_address.name,
+      });
+
+      // 9. Crear orden en base de datos con estado PENDING
       const order = this.orderRepository.create({
         reference,
         status: OrderStatus.PENDING,
@@ -190,22 +211,35 @@ export class PaymentService {
         cart_snapshot: cartSnapshot,
         expires_at: expiresAt,
         session_id: sessionId,
+        checkout_url,
       });
 
       await this.orderRepository.save(order);
 
       this.logger.log(
-        `Payment session created for reference: ${reference} | Amount: ${amount_in_cents} COP`,
+        JSON.stringify({
+          message: 'Payment session created',
+          reference,
+          session_id: sessionId,
+          cart_id: cart.id,
+          order_id: order.id,
+          status: OrderStatus.PENDING,
+          source: 'redirect',
+          amount_in_cents,
+          timestamp: new Date().toISOString(),
+        }),
       );
 
-      // 9. Retornar parámetros para el Widget Checkout de Wompi
+      // 10. Retornar metadata de sesión para Web Checkout (redirect)
       return {
         public_key: this.wompiPublicKey,
         currency: 'COP',
         amount_in_cents,
         reference,
         'signature:integrity': signature,
-        redirect_url: this.redirectUrl,
+        redirect_url: redirectUrlWithReference,
+        checkout_url,
+        expiration_time: expirationTime,
         customer_email: customer_data.email,
         customer_data: {
           full_name: customer_data.full_name,
@@ -240,6 +274,8 @@ export class PaymentService {
     reference: string,
     status: OrderStatus,
     wompi_transaction_id?: string,
+    webhookEventId?: string,
+    webhookTimestamp?: number,
   ): Promise<Order> {
     const order = await this.orderRepository.findByReference(reference);
 
@@ -247,6 +283,42 @@ export class PaymentService {
       throw new NotFoundException(
         `Order with reference ${reference} not found`,
       );
+    }
+
+    const previousStatus = order.status;
+
+    const isDuplicateEvent =
+      previousStatus === status &&
+      (!wompi_transaction_id ||
+        wompi_transaction_id === order.wompi_transaction_id);
+
+    if (isDuplicateEvent) {
+      this.logger.log(
+        JSON.stringify({
+          message: 'Duplicate webhook ignored',
+          reference,
+          status,
+          wompi_transaction_id,
+          event_id: webhookEventId,
+          timestamp: webhookTimestamp,
+        }),
+      );
+      return order;
+    }
+
+    if (previousStatus === OrderStatus.APPROVED && status !== OrderStatus.APPROVED) {
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Ignoring status downgrade for approved order',
+          reference,
+          previous_status: previousStatus,
+          incoming_status: status,
+          wompi_transaction_id,
+          event_id: webhookEventId,
+          timestamp: webhookTimestamp,
+        }),
+      );
+      return order;
     }
 
     order.status = status;
@@ -257,8 +329,20 @@ export class PaymentService {
 
     const savedOrder = await this.orderRepository.save(order);
 
+    this.logger.log(
+      JSON.stringify({
+        message: 'Order status updated from webhook',
+        reference,
+        previous_status: previousStatus,
+        status,
+        wompi_transaction_id,
+        event_id: webhookEventId,
+        timestamp: webhookTimestamp,
+      }),
+    );
+
     // Enviar notificaciones cuando el pago es APPROVED
-    if (status === OrderStatus.APPROVED) {
+    if (status === OrderStatus.APPROVED && previousStatus !== OrderStatus.APPROVED) {
       // 0. Cerrar el carrito asociado (via session_id)
       // Esto garantiza que aunque el frontend no llame a POST /cart/complete,
       // el carrito no quede ACTIVE después de un pago exitoso.
@@ -306,6 +390,48 @@ export class PaymentService {
     return savedOrder;
   }
 
+  async getOrderStatusByReference(
+    reference: string,
+    sessionId: string,
+  ): Promise<OrderStatusResponseDto> {
+    const order = await this.orderRepository.findByReferenceAndSession(
+      reference,
+      sessionId,
+    );
+
+    if (!order) {
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Order lookup denied or not found for session',
+          reference,
+          session_id: sessionId,
+          source: 'redirect',
+          timestamp: new Date().toISOString(),
+        }),
+      );
+
+      throw new NotFoundException(
+        `Order with reference ${reference} not found for this session`,
+      );
+    }
+
+    const isExpired =
+      order.status === OrderStatus.PENDING &&
+      !!order.expires_at &&
+      order.expires_at.getTime() <= Date.now();
+
+    return {
+      order_id: order.id,
+      reference: order.reference,
+      status: order.status,
+      currency: order.currency,
+      amount_in_cents: Number(order.amount_in_cents),
+      wompi_transaction_id: order.wompi_transaction_id,
+      is_expired: isExpired,
+      updated_at: order.updated_at,
+    };
+  }
+
   async getOrderByReference(reference: string): Promise<Order> {
     const order = await this.orderRepository.findByReference(reference);
 
@@ -328,13 +454,76 @@ export class PaymentService {
     return order;
   }
 
+  mapWompiStatusToOrderStatus(status?: string): OrderStatus {
+    switch (status?.toUpperCase()) {
+      case 'APPROVED':
+        return OrderStatus.APPROVED;
+      case 'DECLINED':
+        return OrderStatus.DECLINED;
+      case 'VOIDED':
+        return OrderStatus.VOIDED;
+      case 'ERROR':
+        return OrderStatus.ERROR;
+      default:
+        return OrderStatus.PENDING;
+    }
+  }
+
+  private appendReferenceToRedirectUrl(
+    redirectUrl: string,
+    reference: string,
+  ): string {
+    try {
+      const url = new URL(redirectUrl);
+      url.searchParams.set('reference', reference);
+      return url.toString();
+    } catch {
+      const joiner = redirectUrl.includes('?') ? '&' : '?';
+      return `${redirectUrl}${joiner}reference=${encodeURIComponent(reference)}`;
+    }
+  }
+
+  private buildCheckoutUrl(
+    params: Record<string, string | number | boolean | undefined>,
+  ): string {
+    try {
+      const url = new URL(this.wompiCheckoutUrl);
+
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') {
+          return;
+        }
+
+        url.searchParams.set(key, String(value));
+      });
+
+      return url.toString();
+    } catch {
+      const query = new URLSearchParams();
+
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') {
+          return;
+        }
+
+        query.set(key, String(value));
+      });
+
+      const separator = this.wompiCheckoutUrl.includes('?') ? '&' : '?';
+      return `${this.wompiCheckoutUrl}${separator}${query.toString()}`;
+    }
+  }
+
   // Generar firma de integridad según documentación de Wompi
   private async generateIntegritySignature(
     reference: string,
     amount_in_cents: number,
     currency: string,
+    expirationTime?: string,
   ): Promise<string> {
-    const concatenatedString = `${reference}${amount_in_cents}${currency}${this.wompiIntegritySecret}`;
+    const concatenatedString = expirationTime
+      ? `${reference}${amount_in_cents}${currency}${expirationTime}${this.wompiIntegritySecret}`
+      : `${reference}${amount_in_cents}${currency}${this.wompiIntegritySecret}`;
 
     // Usar crypto.subtle para generar SHA-256
     const encoder = new TextEncoder();
@@ -350,14 +539,6 @@ export class PaymentService {
 
   // Verificar firma de webhook según documentación de Wompi
   async verifyWebhookSignature(webhookData: any): Promise<boolean> {
-    // Si no hay evento secret configurado, loggear warning y permitir
-    if (!this.wompiEventsSecret) {
-      this.logger.warn(
-        '⚠️  Webhook signature validation skipped - WOMPI_EVENTS_SECRET not configured',
-      );
-      return true;
-    }
-
     try {
       // Validar que existan los campos necesarios para verificar la firma
       if (!webhookData?.signature?.checksum) {
@@ -470,5 +651,17 @@ export class PaymentService {
     }
 
     return current;
+  }
+
+  private getRequiredConfig(key: string): string {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      throw new Error(
+        `Missing required environment variable for Wompi integration: ${key}`,
+      );
+    }
+
+    return value;
   }
 }

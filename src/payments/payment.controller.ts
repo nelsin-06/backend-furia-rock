@@ -9,13 +9,14 @@ import {
   Param,
   Headers,
   All,
+  BadRequestException,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import {
   CreateCheckoutDto,
   CheckoutResponseDto,
+  OrderStatusResponseDto,
 } from './dto/payment.dto';
-import { OrderStatus } from '../orders/entities/order.entity';
 import { ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Payments')
@@ -33,7 +34,7 @@ export class PaymentController {
     @Headers('x-session-id') sessionId: string,
     @Body() createCheckoutDto: CreateCheckoutDto,
   ): Promise<CheckoutResponseDto> {
-    this.logger.log('Creating payment session for widget checkout');
+    this.logger.log('Creating payment session for redirect checkout');
     return await this.paymentService.createCheckout(createCheckoutDto, sessionId);
   }
 
@@ -79,6 +80,11 @@ export class PaymentController {
       const reference = transaction.reference;
       const wompi_transaction_id = transaction.id;
       const status = transaction.status;
+      const timestamp = webhookData?.timestamp;
+      const eventId =
+        webhookData?.id ||
+        webhookData?.event_id ||
+        `${reference || 'unknown'}-${timestamp || Date.now()}`;
 
       if (!reference) {
         this.logger.error('Webhook transaction without reference');
@@ -86,38 +92,40 @@ export class PaymentController {
       }
 
       this.logger.log(
-        `Processing webhook for reference: ${reference} | Status: ${status} | Transaction ID: ${wompi_transaction_id}`,
+        JSON.stringify({
+          message: 'Processing Wompi webhook',
+          reference,
+          transaction_id: wompi_transaction_id,
+          status,
+          event_id: eventId,
+          timestamp,
+        }),
       );
 
       // 5. Mapear status de Wompi a nuestro OrderStatus
-      let orderStatus: OrderStatus;
-
-      switch (status?.toUpperCase()) {
-        case 'APPROVED':
-          orderStatus = OrderStatus.APPROVED;
-          break;
-        case 'DECLINED':
-          orderStatus = OrderStatus.DECLINED;
-          break;
-        case 'VOIDED':
-          orderStatus = OrderStatus.VOIDED;
-          break;
-        case 'ERROR':
-          orderStatus = OrderStatus.ERROR;
-          break;
-        default:
-          orderStatus = OrderStatus.PENDING;
-      }
+      const orderStatus = this.paymentService.mapWompiStatusToOrderStatus(status);
 
       // 6. Actualizar estado de la orden
-      await this.paymentService.updateOrderStatus(
+      const updatedOrder = await this.paymentService.updateOrderStatus(
         reference,
         orderStatus,
         wompi_transaction_id,
+        eventId,
+        timestamp,
       );
 
       this.logger.log(
-        `✅ Order ${reference} updated to status: ${orderStatus}`,
+        JSON.stringify({
+          message: 'Order updated from webhook',
+          reference,
+          order_id: updatedOrder.id,
+          session_id: updatedOrder.session_id,
+          transaction_id: updatedOrder.wompi_transaction_id,
+          status: updatedOrder.status,
+          source: 'webhook',
+          event_id: eventId,
+          timestamp,
+        }),
       );
     } catch (error) {
       this.logger.error(
@@ -130,8 +138,18 @@ export class PaymentController {
   }
 
   @Get('order/:reference')
-  async getOrderByReference(@Param('reference') reference: string) {
+  async getOrderByReference(
+    @Param('reference') reference: string,
+    @Headers('x-session-id') sessionId: string,
+  ): Promise<OrderStatusResponseDto> {
+    if (!sessionId) {
+      throw new BadRequestException('x-session-id header is required');
+    }
+
     this.logger.log(`Getting order by reference: ${reference}`);
-    return await this.paymentService.getOrderByReference(reference);
+    return await this.paymentService.getOrderStatusByReference(
+      reference,
+      sessionId,
+    );
   }
 }

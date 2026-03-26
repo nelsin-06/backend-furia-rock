@@ -82,7 +82,7 @@ export class CreateCheckoutDto {
 
 }
 
-// DTO de respuesta al frontend (Widget Checkout)
+// DTO de respuesta al frontend (Web Checkout redirect)
 export class CheckoutResponseDto {
   @IsString()
   public_key: string;
@@ -100,6 +100,12 @@ export class CheckoutResponseDto {
 
   @IsString()
   redirect_url: string;
+
+  @IsString()
+  checkout_url: string;
+
+  @IsString()
+  expiration_time: string;
 
   @IsString()
   customer_email: string;
@@ -124,6 +130,30 @@ export class CheckoutResponseDto {
 
   @IsString()
   order_id: string;
+}
+
+export class OrderStatusResponseDto {
+  @IsString()
+  order_id: string;
+
+  @IsString()
+  reference: string;
+
+  @IsString()
+  status: string;
+
+  @IsString()
+  currency: string;
+
+  amount_in_cents: number;
+
+  @IsOptional()
+  @IsString()
+  wompi_transaction_id?: string | null;
+
+  is_expired: boolean;
+
+  updated_at: Date;
 }
 
 // DTO para webhook de Wompi (sin validaciones - solo contrato de tipos)
