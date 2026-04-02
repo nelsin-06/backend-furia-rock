@@ -41,7 +41,6 @@ export class MailService {
   async sendMail(to: string, subject: string, text: string, html?: string): Promise<boolean> {
     try {
       const from = this.configService.get<string>('RESEND_FROM') || 'noreply@furia-rock.com';
-console.log('============================>',from);
       if (this.resend) {
         const { data, error } = await this.resend.emails.send({
           from,
