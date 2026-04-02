@@ -1,6 +1,8 @@
 import { Module, Logger } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
 import { AdminModule } from './admin/admin.module';
@@ -12,6 +14,8 @@ import { CartModule } from './cart/cart.module';
 import { PaymentModule } from './payments/payment.module';
 import { OrdersModule } from './orders/orders.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+import { DesignsModule } from './designs/designs.module';
+import { Design } from './designs/entities/design.entity';
 import { Admin } from './admin/entities/admin.entity';
 import { Product } from './products/entities/product.entity';
 import { Color } from './colors/entities/color.entity';
@@ -32,6 +36,17 @@ const bootstrapLogger = new Logger('AppModuleBootstrap');
       isGlobal: true,
       envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
     }),
+    // Rate limiting — applied globally via APP_GUARD + ThrottlerGuard.
+    // Three tiers to balance UX and protection:
+    //   short:  20 req / 1 s   (burst protection)
+    //   medium: 100 req / 30 s (sustained API use)
+    //   long:   300 req / 5 min (scraping/DDoS protection)
+    // Admin routes are exempt via @SkipThrottle() in the admin controller.
+    ThrottlerModule.forRoot([
+      { name: 'short',  ttl: 1000,   limit: 20 },
+      { name: 'medium', ttl: 30000,  limit: 100 },
+      { name: 'long',   ttl: 300000, limit: 300 },
+    ]),
     // TypeOrmModule uses forRootAsync so it waits for ConfigModule to load
     // env vars before reading DB_* values via ConfigService.
     TypeOrmModule.forRootAsync({
@@ -61,6 +76,7 @@ const bootstrapLogger = new Logger('AppModuleBootstrap');
             Cart,
             CartItem,
             Order,
+            Design,
           ],
           // synchronize ONLY in development — production must use migrations
           synchronize: isDev,
@@ -91,6 +107,16 @@ const bootstrapLogger = new Logger('AppModuleBootstrap');
     PaymentModule,
     OrdersModule,
     MaintenanceModule,
+    DesignsModule,
+  ],
+  providers: [
+    // Register ThrottlerGuard globally so all routes are rate-limited.
+    // Use APP_GUARD (DI token) instead of useGlobalGuards() so the guard
+    // can inject ThrottlerStorage provided by ThrottlerModule.
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
