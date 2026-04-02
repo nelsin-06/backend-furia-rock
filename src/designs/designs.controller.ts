@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   UploadedFile,
@@ -11,6 +12,8 @@ import {
   UseGuards,
   Query,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -20,6 +23,7 @@ import {
   CreateDesignDto,
   UpdateDesignMetadataDto,
   UpdateDesignStatusDto,
+  AdminUpdateDesignDto,
   AdminDesignQueryDto,
 } from './dto/design.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -133,13 +137,23 @@ export class AdminDesignsController {
 
   /**
    * PATCH /admin/designs/:id
-   * Update design status (contacted, closed).
+   * Update status, designName, customerName and/or phone.
    */
   @Patch(':id')
-  async updateStatus(
+  async updateDesign(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateDesignStatusDto,
+    @Body() dto: AdminUpdateDesignDto,
   ) {
-    return await this.designsService.updateStatus(id, dto);
+    return await this.designsService.updateDesignAdmin(id, dto);
+  }
+
+  /**
+   * DELETE /admin/designs/:id
+   * Permanently deletes a design.
+   */
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteDesign(@Param('id', ParseUUIDPipe) id: string) {
+    await this.designsService.deleteDesign(id);
   }
 }

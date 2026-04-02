@@ -42,6 +42,33 @@ export class UpdateDesignStatusDto {
   status: DesignStatus;
 }
 
+export class AdminUpdateDesignDto {
+  @IsOptional()
+  @IsEnum(DesignStatus)
+  status?: DesignStatus;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  designName?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  phone?: string;
+}
+
 export class AdminDesignQueryDto {
   @IsOptional()
   @IsEnum(DesignStatus)

@@ -12,6 +12,7 @@ import {
   CreateDesignDto,
   UpdateDesignMetadataDto,
   UpdateDesignStatusDto,
+  AdminUpdateDesignDto,
   AdminDesignQueryDto,
 } from './dto/design.dto';
 
@@ -154,6 +155,20 @@ export class DesignsService {
     const design = await this.findOneOrFail(id);
     design.status = dto.status;
     return await this.designRepository.save(design);
+  }
+
+  async updateDesignAdmin(id: string, dto: AdminUpdateDesignDto): Promise<Design> {
+    const design = await this.findOneOrFail(id);
+    if (dto.status !== undefined) design.status = dto.status;
+    if (dto.designName !== undefined) design.designName = dto.designName;
+    if (dto.customerName !== undefined) design.customerName = dto.customerName;
+    if (dto.phone !== undefined) design.phone = dto.phone;
+    return await this.designRepository.save(design);
+  }
+
+  async deleteDesign(id: string): Promise<void> {
+    const design = await this.findOneOrFail(id);
+    await this.designRepository.remove(design);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────────
