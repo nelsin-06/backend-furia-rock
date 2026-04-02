@@ -144,9 +144,10 @@ export class PaymentService {
       // 4. Generar referencia única
       const reference = uuidv4();
 
-      // 5. Calcular tiempo de expiración (15 minutos)
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+      // 5. Calcular tiempos de expiración
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 15 * 60 * 1000); // Expiración corta Wompi
+      const autoExpireAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Expiración operativa
       const expirationTime = expiresAt.toISOString();
 
       // 6. Calcular la firma de integridad (incluyendo expiration-time)
@@ -210,6 +211,7 @@ export class PaymentService {
         shipping_address,
         cart_snapshot: cartSnapshot,
         expires_at: expiresAt,
+        auto_expire_at: autoExpireAt,
         session_id: sessionId,
         checkout_url,
       });
@@ -319,6 +321,23 @@ export class PaymentService {
         }),
       );
       return order;
+    }
+
+    if (
+      previousStatus === OrderStatus.EXPIRED &&
+      status === OrderStatus.APPROVED
+    ) {
+      this.logger.log(
+        JSON.stringify({
+          message: 'Late approved webhook received for expired order',
+          reference,
+          previous_status: previousStatus,
+          incoming_status: status,
+          wompi_transaction_id,
+          event_id: webhookEventId,
+          timestamp: webhookTimestamp,
+        }),
+      );
     }
 
     order.status = status;

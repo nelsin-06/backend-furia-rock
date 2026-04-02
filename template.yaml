@@ -102,29 +102,14 @@ Parameters:
     Type: String
     Default: ''
 
-  # SMTP (email service)
-  SmtpHost:
-    Type: String
-    Default: ''
-  SmtpPort:
-    Type: String
-    Default: '587'
-  SmtpSecure:
-    Type: String
-    Default: 'false'
-    AllowedValues:
-      - 'true'
-      - 'false'
-  SmtpUser:
-    Type: String
-    Default: ''
-  SmtpPass:
+  # Resend (email service)
+  ResendApiKey:
     Type: String
     NoEcho: true
     Default: ''
-  SmtpFrom:
+  ResendFrom:
     Type: String
-    Default: 'noreply@furia-rock.com'
+    Default: ''
 
   # Telegram (order notifications)
   TelegramBotToken:
@@ -158,7 +143,6 @@ Parameters:
 # Resources
 # ---------------------------------------------------------------------------
 Resources:
-
   # ---- HTTP API (API Gateway v2) ----
   FuriaHttpApi:
     Type: AWS::Serverless::HttpApi
@@ -202,12 +186,8 @@ Resources:
           WOMPI_EVENTS_SECRET: !Ref WompiEventsSecret
           WOMPI_BASE_URL: !Ref WompiBaseUrl
           REDIRECT_URL: !Ref RedirectUrl
-          SMTP_HOST: !Ref SmtpHost
-          SMTP_PORT: !Ref SmtpPort
-          SMTP_SECURE: !Ref SmtpSecure
-          SMTP_USER: !Ref SmtpUser
-          SMTP_PASS: !Ref SmtpPass
-          SMTP_FROM: !Ref SmtpFrom
+          RESEND_API_KEY: !Ref ResendApiKey
+          RESEND_FROM: !Ref ResendFrom
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
           TELEGRAM_CHAT_ID: !Ref TelegramChatId
           IMAGE_ASPECT_RATIO: !Ref ImageAspectRatio
@@ -230,6 +210,35 @@ Resources:
             Path: /{proxy+}
             Method: ANY
 
+  ExpirePendingOrdersFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-expire-pending-orders'
+      Handler: dist/jobs/lambda-expire-orders.handler
+      CodeUri: .
+      Description: Expires stale pending orders every 7 days
+      Environment:
+        Variables:
+          NODE_ENV: !Ref NodeEnv
+          DB_HOST: !Ref DbHost
+          DB_PORT: !Ref DbPort
+          DB_USERNAME: !Ref DbUsername
+          DB_PASSWORD: !Ref DbPassword
+          DB_DATABASE: !Ref DbDatabase
+      Events:
+        ExpirePendingOrdersSchedule:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(7 days)
+            FlexibleTimeWindow:
+              Mode: 'OFF'
+            State: ENABLED
+            RetryPolicy:
+              MaximumRetryAttempts: 0
+              MaximumEventAgeInSeconds: 60
+
 # ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
@@ -240,3 +249,6 @@ Outputs:
   FuriaApiFunctionArn:
     Description: ARN of the API Lambda function
     Value: !GetAtt FuriaApiFunction.Arn
+  ExpirePendingOrdersFunctionArn:
+    Description: ARN of the expire-pending-orders Lambda function
+    Value: !GetAtt ExpirePendingOrdersFunction.Arn

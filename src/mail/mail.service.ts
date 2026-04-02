@@ -1,41 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
 import * as handlebars from 'handlebars';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import { Order } from '../orders/entities/order.entity';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: Transporter;
+  private resend?: Resend;
 
   constructor(private readonly configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST'),
-      port: this.configService.get<number>('SMTP_PORT') || 587,
-      secure: this.configService.get<string>('SMTP_SECURE') === 'true',
-      auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
-      },
-    });
+    const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
 
-    // Verificar conexión al iniciar
-    this.verifyConnection();
-  }
-
-  private async verifyConnection(): Promise<void> {
-    try {
-      await this.transporter.verify();
-      this.logger.log('✅ Mail service connected successfully');
-    } catch (error) {
-      this.logger.warn(
-        `⚠️ Mail service connection failed: ${error.message}. Emails will not be sent.`,
-      );
+    if (resendApiKey) {
+      this.resend = new Resend(resendApiKey);
+      this.logger.log('✅ Mail service configured with Resend API');
+      return;
     }
+
+    this.logger.warn('⚠️ RESEND_API_KEY is not configured. Emails will not be sent.');
   }
 
   private loadTemplate(templateName: string, variables: Record<string, any>): string {
@@ -55,19 +40,28 @@ export class MailService {
 
   async sendMail(to: string, subject: string, text: string, html?: string): Promise<boolean> {
     try {
-      const from = this.configService.get<string>('SMTP_FROM') || 'noreply@furia-rock.com';
+      const from = this.configService.get<string>('RESEND_FROM') || 'noreply@furia-rock.com';
+console.log('============================>',from);
+      if (this.resend) {
+        const { data, error } = await this.resend.emails.send({
+          from,
+          to,
+          subject,
+          text,
+          html: html || undefined,
+        });
 
-      const mailOptions = {
-        from,
-        to,
-        subject,
-        text,
-        html: html || text,
-      };
+        if (error) {
+          this.logger.error(`❌ Failed to send email to ${to} with Resend: ${error.message}`);
+          return false;
+        }
 
-      const info = await this.transporter.sendMail(mailOptions);
-      this.logger.log(`✅ Email sent to ${to} | Message ID: ${info.messageId}`);
-      return true;
+        this.logger.log(`✅ Email sent to ${to} | Resend ID: ${data?.id || 'unknown'}`);
+        return true;
+      }
+
+      this.logger.error('❌ No email provider configured. Set RESEND_API_KEY variable');
+      return false;
     } catch (error) {
       this.logger.error(`❌ Failed to send email to ${to}: ${error.message}`, error.stack);
       return false;

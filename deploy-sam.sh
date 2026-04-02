@@ -7,9 +7,11 @@ Usage:
   ./deploy-sam.sh <dev|prod> [--profile AWS_PROFILE] [--s3-bucket BUCKET] [--no-build] [--no-container]
 
 What it does:
-  - Loads env vars from .env.development (dev) or .env.production (prod)
-  - Builds the SAM artifact (default: with container for Lambda compatibility)
-  - Deploys the stack with --parameter-overrides mapped from the .env file
+  1) Loads env vars from .env.development (dev) or .env.production (prod)
+  2) Runs idempotent DB migration for order expiration fields/indexes
+  3) Builds the SAM artifacts (default: with container for Lambda compatibility)
+  4) Deploys the stack with --parameter-overrides mapped from the .env file
+  5) Verifies post-deploy resources (expire-orders Lambda + Scheduler V2)
 
 Examples:
   ./deploy-sam.sh dev --profile sam-deployer-furia --s3-bucket furia-rock-sam-artifacts-dev
@@ -99,6 +101,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 2
 fi
 
+if [[ ! -f "scripts/migrate-order-expiration.js" ]]; then
+  echo "Error: migration script not found: scripts/migrate-order-expiration.js" >&2
+  exit 2
+fi
+
 # Load dotenv-style file.
 # NOTE: This uses 'source' (shell evaluation). Keep your .env.* files as plain KEY=VALUE.
 set -a
@@ -164,12 +171,8 @@ overrides=(
   "WompiEventsSecret=${WOMPI_EVENTS_SECRET}"
   "WompiBaseUrl=${WOMPI_BASE_URL:-}"
   "RedirectUrl=${REDIRECT_URL:-}"
-  "SmtpHost=${SMTP_HOST:-}"
-  "SmtpPort=${SMTP_PORT:-587}"
-  "SmtpSecure=${SMTP_SECURE:-false}"
-  "SmtpUser=${SMTP_USER:-}"
-  "SmtpPass=${SMTP_PASS:-}"
-  "SmtpFrom=${SMTP_FROM:-noreply@furia-rock.com}"
+  "ResendApiKey=${RESEND_API_KEY:-}"
+  "ResendFrom=${RESEND_FROM:-onboarding@resend.dev}"
   "TelegramBotToken=${TELEGRAM_BOT_TOKEN:-}"
   "TelegramChatId=${TELEGRAM_CHAT_ID:-}"
   "ImageAspectRatio=${IMAGE_ASPECT_RATIO:-0.7}"
@@ -184,6 +187,14 @@ profile_args=()
 if [[ -n "$AWS_PROFILE_NAME" ]]; then
   profile_args=("--profile" "$AWS_PROFILE_NAME")
 fi
+
+aws_cli_args=("--region" "$REGION_VALUE")
+if [[ -n "$AWS_PROFILE_NAME" ]]; then
+  aws_cli_args+=("--profile" "$AWS_PROFILE_NAME")
+fi
+
+echo "Running DB migration for order expiration..."
+node scripts/migrate-order-expiration.js
 
 if [[ $NO_BUILD -eq 0 ]]; then
   if [[ $NO_CONTAINER -eq 0 ]]; then
@@ -206,3 +217,83 @@ sam deploy \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides "${overrides[@]}" \
   "${profile_args[@]}"
+
+echo "Running post-deploy verification..."
+
+EXPIRE_FUNCTION_NAME="${STACK_NAME}-expire-pending-orders"
+
+aws "${aws_cli_args[@]}" lambda get-function \
+  --function-name "$EXPIRE_FUNCTION_NAME" \
+  >/dev/null
+echo "  OK Lambda exists: $EXPIRE_FUNCTION_NAME"
+
+RAW_SCHEDULE_ID="$(aws "${aws_cli_args[@]}" cloudformation list-stack-resources \
+  --stack-name "$STACK_NAME" \
+  --query "StackResourceSummaries[?ResourceType=='AWS::Scheduler::Schedule'] | [0].PhysicalResourceId" \
+  --output text)"
+
+if [[ -z "$RAW_SCHEDULE_ID" || "$RAW_SCHEDULE_ID" == "None" ]]; then
+  echo "Error: No AWS::Scheduler::Schedule resource found in stack '$STACK_NAME'" >&2
+  exit 1
+fi
+
+SCHEDULE_GROUP="default"
+SCHEDULE_NAME="$RAW_SCHEDULE_ID"
+
+if [[ "$RAW_SCHEDULE_ID" == arn:* ]]; then
+  schedule_path="${RAW_SCHEDULE_ID##*:schedule/}"
+  SCHEDULE_GROUP="${schedule_path%%/*}"
+  SCHEDULE_NAME="${schedule_path##*/}"
+elif [[ "$RAW_SCHEDULE_ID" == */* ]]; then
+  SCHEDULE_GROUP="${RAW_SCHEDULE_ID%%/*}"
+  SCHEDULE_NAME="${RAW_SCHEDULE_ID##*/}"
+fi
+
+echo "  OK Scheduler exists: $SCHEDULE_NAME"
+
+SCHEDULE_EXPRESSION="$(aws "${aws_cli_args[@]}" scheduler get-schedule \
+  --group-name "$SCHEDULE_GROUP" \
+  --name "$SCHEDULE_NAME" \
+  --query "ScheduleExpression" \
+  --output text)"
+
+SCHEDULE_STATE="$(aws "${aws_cli_args[@]}" scheduler get-schedule \
+  --group-name "$SCHEDULE_GROUP" \
+  --name "$SCHEDULE_NAME" \
+  --query "State" \
+  --output text)"
+
+SCHEDULE_RETRY_ATTEMPTS="$(aws "${aws_cli_args[@]}" scheduler get-schedule \
+  --group-name "$SCHEDULE_GROUP" \
+  --name "$SCHEDULE_NAME" \
+  --query "Target.RetryPolicy.MaximumRetryAttempts" \
+  --output text)"
+
+SCHEDULE_MAX_EVENT_AGE="$(aws "${aws_cli_args[@]}" scheduler get-schedule \
+  --group-name "$SCHEDULE_GROUP" \
+  --name "$SCHEDULE_NAME" \
+  --query "Target.RetryPolicy.MaximumEventAgeInSeconds" \
+  --output text)"
+
+if [[ "$SCHEDULE_EXPRESSION" != "rate(7 days)" ]]; then
+  echo "Error: Scheduler expression is '$SCHEDULE_EXPRESSION' (expected 'rate(7 days)')" >&2
+  exit 1
+fi
+
+if [[ "$SCHEDULE_STATE" != "ENABLED" ]]; then
+  echo "Error: Scheduler state is '$SCHEDULE_STATE' (expected 'ENABLED')" >&2
+  exit 1
+fi
+
+if [[ "$SCHEDULE_RETRY_ATTEMPTS" != "0" ]]; then
+  echo "Error: Scheduler MaximumRetryAttempts is '$SCHEDULE_RETRY_ATTEMPTS' (expected '0')" >&2
+  exit 1
+fi
+
+if [[ "$SCHEDULE_MAX_EVENT_AGE" != "60" ]]; then
+  echo "Error: Scheduler MaximumEventAgeInSeconds is '$SCHEDULE_MAX_EVENT_AGE' (expected '60')" >&2
+  exit 1
+fi
+
+echo "  OK Scheduler config: expression=$SCHEDULE_EXPRESSION state=$SCHEDULE_STATE retries=$SCHEDULE_RETRY_ATTEMPTS maxEventAge=$SCHEDULE_MAX_EVENT_AGE"
+echo "Deploy completed successfully for '$STACK_NAME'."

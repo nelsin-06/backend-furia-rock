@@ -20,7 +20,11 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "typeorm-ts-node-commonjs",
     "seed": "node dist/seed",
-    "seed:dev": "nest build && node dist/seed"
+    "seed:dev": "nest build && node dist/seed",
+    "seed:all": "nest build && node dist/seeds/run-seeds",
+    "seed:admin": "nest build && node dist/seeds/run-seeds --only=admin",
+    "seed:colors": "nest build && node dist/seeds/run-seeds --only=colors",
+    "seed:qualities": "nest build && node dist/seeds/run-seeds --only=qualities"
   },
   "dependencies": {
     "@codegenie/serverless-express": "^4.17.1",
@@ -41,11 +45,11 @@
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "mysql2": "^3.6.0",
-    "nodemailer": "^7.0.11",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.0",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.1.13",
+    "resend": "^6.9.4",
     "rxjs": "^7.2.0",
     "sharp": "^0.34.5",
     "swagger-ui-express": "^5.0.1",
@@ -63,7 +67,6 @@
     "@types/jest": "29.5.2",
     "@types/multer": "^1.4.13",
     "@types/node": "20.3.1",
-    "@types/nodemailer": "^7.0.4",
     "@types/passport-jwt": "^3.0.8",
     "@types/sharp": "^0.31.1",
     "@types/supertest": "^2.0.11",

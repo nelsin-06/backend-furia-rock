@@ -8,6 +8,7 @@ import {
 
 export enum OrderStatus {
   PENDING = 'PENDING',
+  EXPIRED = 'EXPIRED',
   APPROVED = 'APPROVED',
   DECLINED = 'DECLINED',
   VOIDED = 'VOIDED',
@@ -99,6 +100,9 @@ export class Order {
 
   @Column({ type: 'timestamp', nullable: true })
   expires_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  auto_expire_at: Date;
 
   @Column({ nullable: true })
   checkout_url: string;

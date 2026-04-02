@@ -250,6 +250,12 @@ CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 CLOUDINARY_FOLDER=products
 
+# Email provider (Resend - recommended)
+RESEND_API_KEY=re_xxxxxxxxx
+RESEND_FROM=onboarding@resend.dev
+
+# Replace re_xxxxxxxxx with your real key from Resend
+
 # Image Upload Validation (Optional - defaults provided)
 IMAGE_ASPECT_RATIO=0.7              # Target aspect ratio (7:10)
 IMAGE_ASPECT_RATIO_TOLERANCE=0.05   # Tolerance (5%)
